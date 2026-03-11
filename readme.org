@@ -1,0 +1,36 @@
+* Synopsis
+Even though this is technically a school project, I am mostly using this as an excuse to push myself to finally develop
+the little game I always wanted to make and get better-ish at programming. This project is public for ease-of-access,
+but is not intended to be viewed by a wide audience. If a stranger does somehow stumble across this, hello, feel free
+to look at the source code. No guarantee it will be good. If all goes well, this will a nostalgia project in a few years.
+
+* Project structure
+** Near roadmap
+- Setup build process with meson [Pending…]
+- Get a player on the screen with SDL [Pending…]
+- Input handling for player movement (simple movement controller) [Pending…]
+- Basic debug UI w/ text [Pending…]
+** Far roadmap
+*** Player movement upgrade
+- Thruster sprites [Pending…]
+- Slight inaccuracies in thruster output [Pending…]
+- Vector indicators [Pending…]
+- Nose-follows-mouse [Pending…]
+*** Engine
+- Spawning and simulating asteroids [Pending…]
+- Loading in chunks [Pending…]
+- Collision in chunks [Pending…]
+- Serializing chunk data to savefiles [Pending…]
+- Parallax graphics (far objects) [Pending…]
+*** UI
+- Text drawing w/ custom font [Pending…]
+- Animated panels (curve controllers) [Pending…]
+- (?) Touchscreen support (for alia) [Pending…]
+- (?) Shaders for accelerated graphics [Pending…]
+*** Audio
+- Basic ambience streaming [Pending…]
+- SFX for common sounds (thrusters, collision, mining) [Pending…]
+
+* Special thanks
+- …to ZHS 0x82AB1AFA45 for helping me with this project
+- …to my teacher for allowing me to use something other than pygame-zero

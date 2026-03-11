@@ -6,9 +6,9 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 
 * Project structure
 ** Near roadmap
-- Setup build process with meson [Pending…]
-- Get a player on the screen with SDL [Pending…]
-- Input handling for player movement (simple movement controller) [Pending…]
+- Setup build process with meson [Complete!]
+- Get a player on the screen with SDL [Complete!]
+- Input handling for player movement (simple movement controller) [Complete!]
 - Basic debug UI w/ text [Pending…]
 ** Far roadmap
 *** Player movement upgrade

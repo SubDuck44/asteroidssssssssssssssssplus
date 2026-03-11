@@ -31,6 +31,12 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 - Basic ambience streaming [Pending…]
 - SFX for common sounds (thrusters, collision, mining) [Pending…]
 
+* My project benefits from these ⛪ Blessed Technologies:
+- 🦀 [[https://rust-lang.org][Memory Safe® Rust™ code]]
+- 🚀 [[https://doc.rust-lang.org/beta/embedded-book/static-guarantees/zero-cost-abstractions.html][Zero-Cost™ abstractions]]
+- ⚡ [[https://lib.rs/crates/sdl3][Blazingly Fast™ libraries]]
+- 🧠 [[https://github.com/user-attachments/assets/89ca59f1-e1ec-44bb-9138-4217821ded62][Intuitive]] [[https://github.com/user-attachments/assets/86329481-d0b8-4e49-a202-7ce21ffcbf4d][Data]] [[https://github.com/user-attachments/assets/a8fcc5f1-c663-42eb-b038-ee1e8487bfb0][Types]]
+
 * Special thanks
-- …to ZHS 0x82AB1AFA45 for helping me with this project
+- …to ZHS 0x82AB1AFA45 for RIIRing this project
 - …to my teacher for allowing me to use something other than pygame-zero

@@ -9,7 +9,7 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 - Setup build process with meson [Complete!]
 - Get a player on the screen with SDL [Complete!]
 - Input handling for player movement (simple movement controller) [Complete!]
-- Basic debug UI w/ text [Pending…]
+- Basic debug UI w/ text [Complete!]
 ** Far roadmap
 *** Player movement upgrade
 - Thruster sprites [Pending…]

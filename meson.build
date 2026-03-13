@@ -7,11 +7,12 @@ project(
 	},
 )
 
-sdl = dependency('sdl3')
-
 executable(
 	'asteroids16plus.x86_64',
 	'src/main.c',
-	dependencies: [sdl],
+	dependencies: [
+		dependency('sdl3'),
+		dependency('sdl3-ttf')
+	],
 	install: true,
 )

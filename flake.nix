@@ -15,6 +15,7 @@
             fileset = unions [
               ./meson.build
               ./src
+              ./res
             ];
           };
 
@@ -26,6 +27,7 @@
 
           buildInputs = with pkgs; [
             sdl3
+            sdl3-ttf
           ];
         };
 

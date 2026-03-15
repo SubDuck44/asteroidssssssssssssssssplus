@@ -10,8 +10,13 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 - Get a player on the screen with SDL [Complete!]
 - Input handling for player movement (simple movement controller) [Complete!]
 - Basic debug UI w/ text [Complete!]
+- Vector2 based movement controller [Pending…]
+- Persistent key input handling [Pending…]
+- In-game debug console [Pending…]
+- Auto-generate resource embeds [Pending…]
 ** Far roadmap
 *** Player movement upgrade
+- Advanced movement controller [Pending…]
 - Thruster sprites [Pending…]
 - Slight inaccuracies in thruster output [Pending…]
 - Vector indicators [Pending…]
@@ -22,6 +27,8 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 - Collision in chunks [Pending…]
 - Serializing chunk data to savefiles [Pending…]
 - Parallax graphics (far objects) [Pending…]
+- Multithreading (for independent rendering/physics) [Pending…]
+- FPS Compensation [Pending…]
 *** UI
 - Text drawing w/ custom font [Pending…]
 - Animated panels (curve controllers) [Pending…]

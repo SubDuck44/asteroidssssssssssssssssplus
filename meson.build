@@ -12,7 +12,10 @@ executable(
 	'src/main.c',
 	dependencies: [
 		dependency('sdl3'),
-		dependency('sdl3-ttf')
+		dependency('sdl3-ttf'),
+	],
+	link_args: [
+		'-lm',
 	],
 	install: true,
 )

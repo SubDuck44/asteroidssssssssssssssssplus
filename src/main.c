@@ -270,16 +270,16 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 	case SDL_EVENT_KEY_UP:
 		switch(event->key.key) {
 		case SDLK_W:
-			engine.key_cache[KEY_W] ^= engine.key_cache[KEY_W];
+			engine.key_cache[KEY_W] = false;
 			break;
 		case SDLK_A:
-			engine.key_cache[KEY_A] ^= engine.key_cache[KEY_A];
+			engine.key_cache[KEY_A] = false;
 			break;
 		case SDLK_S:
-			engine.key_cache[KEY_S] ^= engine.key_cache[KEY_S];
+			engine.key_cache[KEY_S] = false;
 			break;
 		case SDLK_D:
-			engine.key_cache[KEY_D] ^= engine.key_cache[KEY_D];
+			engine.key_cache[KEY_D] = false;
 			break;
 		}
 		break;

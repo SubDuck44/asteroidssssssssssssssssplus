@@ -25,10 +25,12 @@
 #define REG_TEXTURE(tex_embed_var)                                             \
 	{NULL, tex_embed_var, sizeof(tex_embed_var), {0.0f, 0.0f, 0.0f, 0.0f}}
 
-enum Texture_Cache_Textures { TEXTURE_PLAYER, TEXTURES_NUM };
-enum Keys {
+#define GET_KEY_PRESSED(key) engine.key_cache[key]
 
-};
+#define PROPER_MOD(x, mod) ((x % mod) + mod) % mod
+
+enum Texture_Cache_Textures { TEXTURE_PLAYER, TEXTURES_NUM };
+enum Keys { KEY_W, KEY_A, KEY_S, KEY_D, KEY_NUM };
 
 typedef struct {
 	SDL_Texture*   tex;
@@ -55,16 +57,15 @@ typedef struct {
 } Player;
 
 typedef struct {
-	double          last_frame;
+	uint64_t        last_frame;
+	uint64_t        last_average;
 	uint32_t        desired_fps;
-	uint16_t        frames_last_second;
-	uint16_t        last_second_measurement;
 	uint16_t        current_fps;
 	char            fps_textbuffer[DEF_FPS_TEXTBUFFER_SIZE];
 	TTF_Font*       font;
 	TTF_TextEngine* text_engine;
 	TTF_Text*       hewo;
-	uint8_t
+	bool            key_cache[KEY_NUM];
 } Engine;
 
 SDL_Point screensize = {DEF_SCREENWIDTH, DEF_SCREENHEIGHT};
@@ -88,21 +89,50 @@ SDL_FPoint pointf_rotate(const SDL_FPoint a, const float deg) {
 	return (SDL_FPoint) {x, y};
 }
 
+float pointf_length(const SDL_FPoint a) {
+	const float length = sqrt((a.x * a.x) + (a.y * a.y));
+	if(length <= SDL_FLT_EPSILON) return 0.0f;
+	return length;
+}
+
+SDL_FPoint pointf_normalize(const SDL_FPoint a) {
+	const float length = sqrt((a.x * a.x) + (a.y * a.y));
+	if(length <= SDL_FLT_EPSILON) return a;
+	const float x = a.x / length;
+	const float y = a.y / length;
+	return (SDL_FPoint) {x, y};
+}
+
+SDL_FPoint pointf_scale(const SDL_FPoint a, const double scale) {
+	if(scale <= SDL_FLT_EPSILON || pointf_length(a) <= SDL_FLT_EPSILON)
+		return a;
+	float x = a.x * scale;
+	float y = a.y * scale;
+	return (SDL_FPoint) {x, y};
+}
+
+double get_deltatime_factor(void) {
+	return ((double) (1'000'000'000) / engine.desired_fps) / engine.last_frame;
+}
+
 void engine_update_frame(void) {
-	// Get current fps
-	uint16_t measurement = (uint16_t) (SDL_GetTicks() % 1000);
-	if(measurement < engine.last_second_measurement) {
-		engine.last_second_measurement = measurement;
-		engine.current_fps             = ++engine.frames_last_second;
-		engine.frames_last_second ^= engine.frames_last_second;
-		snprintf(
-			engine.fps_textbuffer, sizeof(engine.fps_textbuffer), "FPS: %d",
-			engine.current_fps
-		);
-		TTF_SetTextString(engine.hewo, engine.fps_textbuffer, 0);
-	} else {
-		engine.frames_last_second++;
-		engine.last_second_measurement = measurement;
+	// Set FPS display
+	{
+		char fps_string[256] = {0};
+		snprintf(fps_string, sizeof(fps_string), "FPS: %d", engine.current_fps);
+		TTF_SetTextString(engine.hewo, fps_string, sizeof(fps_string));
+	}
+	// Move player
+	{
+		SDL_FPoint new_pos = {0};
+		if(GET_KEY_PRESSED(KEY_W)) new_pos.y -= 1;
+		if(GET_KEY_PRESSED(KEY_A)) new_pos.x -= 1;
+		if(GET_KEY_PRESSED(KEY_S)) new_pos.y += 1;
+		if(GET_KEY_PRESSED(KEY_D)) new_pos.x += 1;
+		new_pos = pointf_normalize(new_pos);
+		new_pos =
+			pointf_scale(new_pos, player.move_speed * get_deltatime_factor());
+		player.pos = pointf_add(new_pos, player.pos);
 	}
 }
 
@@ -203,7 +233,11 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	player.rot        = 0.0;
 	player.move_speed = 50;
 
-	engine.last_frame  = 0;
+	engine.last_frame =
+		1; /* DO NOT set this to 0 UNDER ANY CIRCUMSTANCE
+	          I couldve invested in doing proper error checking, but that was
+	          too much effort. Therefore, just leave this at 1. Don't worry
+	          about it. (This avoids NaN contamination) */
 	engine.desired_fps = DEF_FPS;
 
 	engine.hewo = TTF_CreateText(engine.text_engine, engine.font, "hewo :3", 0);
@@ -220,16 +254,32 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 			// Manual quit from the window
 			return SDL_APP_SUCCESS;
 		case SDLK_W:
-			player.pos.y -= player.move_speed;
+			engine.key_cache[KEY_W] = true;
 			break;
 		case SDLK_A:
-			player.pos.x -= player.move_speed;
+			engine.key_cache[KEY_A] = true;
 			break;
 		case SDLK_S:
-			player.pos.y += player.move_speed;
+			engine.key_cache[KEY_S] = true;
 			break;
 		case SDLK_D:
-			player.pos.x += player.move_speed;
+			engine.key_cache[KEY_D] = true;
+			break;
+		}
+		break;
+	case SDL_EVENT_KEY_UP:
+		switch(event->key.key) {
+		case SDLK_W:
+			engine.key_cache[KEY_W] ^= engine.key_cache[KEY_W];
+			break;
+		case SDLK_A:
+			engine.key_cache[KEY_A] ^= engine.key_cache[KEY_A];
+			break;
+		case SDLK_S:
+			engine.key_cache[KEY_S] ^= engine.key_cache[KEY_S];
+			break;
+		case SDLK_D:
+			engine.key_cache[KEY_D] ^= engine.key_cache[KEY_D];
 			break;
 		}
 		break;
@@ -243,8 +293,17 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 SDL_AppResult SDL_AppIterate(void* appstate) {
 	(void) appstate;
 
+	// Start frame timer
+	const uint64_t frametime_start = SDL_GetTicksNS();
+
 	engine_update_frame();
 	engine_draw_frame();
+
+	// Stop frame timer
+	engine.last_frame = SDL_GetTicksNS() - frametime_start;
+	engine.current_fps =
+		(((double) (1'000'000'000) / engine.last_frame) + engine.current_fps) /
+		2;
 
 	return SDL_APP_CONTINUE;
 }

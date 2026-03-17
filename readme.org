@@ -10,8 +10,8 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 - Get a player on the screen with SDL [Complete!]
 - Input handling for player movement (simple movement controller) [Complete!]
 - Basic debug UI w/ text [Complete!]
-- Vector2 based movement controller [Pending…]
-- Persistent key input handling [Pending…]
+- Vector2 based movement controller [Complete!]
+- Persistent key input handling [Complete!]
 - In-game debug console [Pending…]
 - Auto-generate resource embeds [Pending…]
 ** Far roadmap

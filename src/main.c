@@ -111,6 +111,13 @@ SDL_FPoint pointf_scale(const SDL_FPoint a, const double scale) {
 	return (SDL_FPoint) {x, y};
 }
 
+SDL_FPoint pointf_force(const float magnitude, const float rotation) {
+	SDL_FPoint vec = (SDL_FPoint) {0.0f, -1.0};
+	vec            = pointf_scale(vec, magnitude);
+	vec            = pointf_rotate(vec, rotation);
+	return vec;
+}
+
 double get_deltatime_factor(void) {
 	return ((double) (1'000'000'000) / engine.desired_fps) / engine.last_frame;
 }
@@ -124,21 +131,30 @@ void engine_update_frame(void) {
 	}
 	// Move player
 	{
-		SDL_FPoint new_pos = {0};
-		if(GET_KEY_PRESSED(KEY_W)) new_pos.y -= 1;
-		if(GET_KEY_PRESSED(KEY_A)) new_pos.x -= 1;
-		if(GET_KEY_PRESSED(KEY_S)) new_pos.y += 1;
-		if(GET_KEY_PRESSED(KEY_D)) new_pos.x += 1;
-		new_pos = pointf_normalize(new_pos);
-		new_pos =
-			pointf_scale(new_pos, player.move_speed * get_deltatime_factor());
-		player.pos = pointf_add(new_pos, player.pos);
+		//		if(GET_KEY_PRESSED(KEY_W))
+		if(GET_KEY_PRESSED(KEY_A))
+			player.rot = PROPER_MOD((int) player.rot - 3, 360);
+		//		if(GET_KEY_PRESSED(KEY_S))
+		if(GET_KEY_PRESSED(KEY_D))
+			player.rot = PROPER_MOD((int) player.rot + 3, 360);
+		if(GET_KEY_PRESSED(KEY_W)) {
+			player.vel = pointf_add(
+				pointf_force(
+					player.move_speed * get_deltatime_factor(), player.rot
+				),
+				player.vel
+			);
+		}
+
+		player.pos   = pointf_add(player.pos, player.vel);
+		player.pos.x = PROPER_MOD((int) player.pos.x, screensize.x);
+		player.pos.y = PROPER_MOD((int) player.pos.y, screensize.y);
 	}
 }
 
 void engine_draw_frame(void) {
 	SDL_FRect  player_rect = {player.pos.x, player.pos.y, 50, 50};
-	SDL_FPoint player_ctr  = {player.pos.x + 25, player.pos.y + 25};
+	SDL_FPoint player_ctr  = {25, 25};
 
 	// Grey background
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -231,7 +247,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	player.pos        = (SDL_FPoint) {screensize.x >> 1, screensize.y >> 1};
 	player.vel        = (SDL_FPoint) {0.0, 0.0};
 	player.rot        = 0.0;
-	player.move_speed = 50;
+	player.move_speed = 0.25;
 
 	engine.last_frame =
 		1; /* DO NOT set this to 0 UNDER ANY CIRCUMSTANCE

@@ -1,3 +1,5 @@
+#pragma once
+
 #define SDL_MAIN_USE_CALLBACKS
 
 #include <SDL3/SDL.h>
@@ -39,14 +41,6 @@ typedef struct {
 	SDL_FRect      src;
 } Texture;
 
-const uint8_t EMBED_TEXTURE_PLAYER[] = {
-#embed "../res/player.png"
-};
-
-Texture textures[TEXTURES_NUM] = {
-	REG_TEXTURE(EMBED_TEXTURE_PLAYER),
-};
-
 typedef struct {
 	bool         alive;
 	SDL_FPoint   pos;
@@ -68,12 +62,41 @@ typedef struct {
 	bool            key_cache[KEY_NUM];
 } Engine;
 
+extern SDL_Point screensize;
+extern Player    player;
+extern Engine    engine;
+
+extern const char    EMB_IOSEVKA_FONT[];
+extern const uint8_t EMB_TEXTURE_PLAYER[];
+extern Texture       textures[TEXTURES_NUM];
+
+// Vector magic
+SDL_FPoint pointf_add(const SDL_FPoint a, const SDL_FPoint b);
+SDL_FPoint pointf_rotate(const SDL_FPoint a, const float deg);
+float      pointf_length(const SDL_FPoint a);
+SDL_FPoint pointf_normalize(const SDL_FPoint a);
+SDL_FPoint pointf_scale(const SDL_FPoint a, const double scale);
+
+// Misc engine
+double get_deltatime_factor(void);
+
+#if __INCLUDE_LEVEL__ == 0
+/*========= Private declerations/definitions only past this point =========*/
+
 SDL_Point screensize = {DEF_SCREENWIDTH, DEF_SCREENHEIGHT};
 Player    player     = {0};
 Engine    engine     = {0};
 
-const char iosevka_font[] = {
+const char EMB_IOSEVKA_FONT[] = {
 #embed "../res/Iosevka-Regular.ttf"
+};
+
+const uint8_t EMB_TEXTURE_PLAYER[] = {
+#embed "../res/player.png"
+};
+
+Texture textures[TEXTURES_NUM] = {
+	REG_TEXTURE(EMB_TEXTURE_PLAYER),
 };
 
 static SDL_Window*   window   = NULL;
@@ -203,7 +226,8 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 
 	// Try setup font file
 	engine.font = TTF_OpenFontIO(
-		SDL_IOFromConstMem(iosevka_font, sizeof(iosevka_font)), true, 12.0f
+		SDL_IOFromConstMem(EMB_IOSEVKA_FONT, sizeof(EMB_IOSEVKA_FONT)), true,
+		12.0f
 	);
 	if(!engine.font) {
 		SDL_Err("Failed to load font");
@@ -329,3 +353,4 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	(void) result;
 	// Window/renderer cleanup done by SDL internally
 }
+#endif

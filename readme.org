@@ -37,6 +37,7 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 *** Audio
 - Basic ambience streaming [Pending…]
 - SFX for common sounds (thrusters, collision, mining) [Pending…]
+- In-game music player with custom music imports [Pending…]
 
 * Special thanks
 - …to ZHS 0x82AB1AFA45 for helping me with this project

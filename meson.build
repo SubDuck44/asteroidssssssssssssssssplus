@@ -10,6 +10,7 @@ project(
 executable(
 	'asteroids16plus.x86_64',
 	'src/main.c',
+	'src/shell.c',
 	dependencies: [
 		dependency('sdl3'),
 		dependency('sdl3-ttf'),

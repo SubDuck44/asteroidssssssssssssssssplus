@@ -6,12 +6,17 @@
 #include <SDL3/SDL_main.h>
 #include <SDL3_ttf/SDL_ttf.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
+
+#include "shell.c"
 
 #define DEF_SCREENWIDTH 1280
 #define DEF_SCREENHEIGHT 720
 #define DEF_FPS 60
 #define DEF_FPS_TEXTBUFFER_SIZE 64
+#define DEF_SHELL_INPUTBUF_CAP 256
+#define DEF_SHELL_HISTBUF_CAP 4096
 
 #define DEG2RAD 0.01745329252
 #define RAD2DEG 57.29577951
@@ -60,6 +65,7 @@ typedef struct {
 	TTF_TextEngine* text_engine;
 	TTF_Text*       hewo;
 	bool            key_cache[KEY_NUM];
+	Shell           std_shell;
 } Engine;
 
 extern SDL_Point screensize;
@@ -80,8 +86,7 @@ SDL_FPoint pointf_scale(const SDL_FPoint a, const double scale);
 // Misc engine
 double get_deltatime_factor(void);
 
-#if __INCLUDE_LEVEL__ == 0
-/*========= Private declerations/definitions only past this point =========*/
+#if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
 SDL_Point screensize = {DEF_SCREENWIDTH, DEF_SCREENHEIGHT};
 Player    player     = {0};
@@ -178,7 +183,6 @@ void engine_update_frame(void) {
 void engine_draw_frame(void) {
 	SDL_FRect  player_rect = {player.pos.x, player.pos.y, 50, 50};
 	SDL_FPoint player_ctr  = {25, 25};
-
 	// Grey background
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
@@ -275,10 +279,16 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 
 	engine.last_frame =
 		1; /* DO NOT set this to 0 UNDER ANY CIRCUMSTANCE
-	          I couldve invested in doing proper error checking, but that was
-	          too much effort. Therefore, just leave this at 1. Don't worry
-	          about it. (This avoids NaN contamination) */
+	          I couldve invested in doing proper error checking, but that
+	          was too much effort. Therefore, just leave this at 1. Don't
+	          worry about it. (This avoids NaN contamination) */
 	engine.desired_fps = DEF_FPS;
+	if(!shell_init(
+		   &engine.std_shell, DEF_SHELL_INPUTBUF_CAP, DEF_SHELL_HISTBUF_CAP
+	   )) {
+		SDL_Log("Failed to initialize std_shell");
+		return SDL_APP_FAILURE;
+	}
 
 	engine.hewo = TTF_CreateText(engine.text_engine, engine.font, "hewo :3", 0);
 

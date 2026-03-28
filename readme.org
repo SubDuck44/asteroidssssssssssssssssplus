@@ -12,8 +12,7 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 - Basic debug UI w/ text [Complete!]
 - Vector2 based movement controller [Complete!]
 - Persistent key input handling [Complete!]
-- In-game debug console [Pending…]
-- Auto-generate resource embeds [Pending…]
+- Vector drawing (prograde, normal) [Pending…]
 ** Far roadmap
 *** Player movement upgrade
 - Advanced movement controller [Pending…]
@@ -34,6 +33,7 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 - Animated panels (curve controllers) [Pending…]
 - (?) Touchscreen support (for alia) [Pending…]
 - (?) Shaders for accelerated graphics [Pending…]
+- In-game debug console [Pending…]
 *** Audio
 - Basic ambience streaming [Pending…]
 - SFX for common sounds (thrusters, collision, mining) [Pending…]

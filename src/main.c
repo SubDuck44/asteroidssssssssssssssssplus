@@ -3,20 +3,18 @@
 #define SDL_MAIN_USE_CALLBACKS
 
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_main.h>
 #include <SDL3_ttf/SDL_ttf.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
-
-#include "shell.c"
+#include <stdlib.h>
+#include <unistd.h>
 
 #define DEF_SCREENWIDTH 1280
 #define DEF_SCREENHEIGHT 720
 #define DEF_FPS 60
 #define DEF_FPS_TEXTBUFFER_SIZE 64
-#define DEF_SHELL_INPUTBUF_CAP 256
-#define DEF_SHELL_HISTBUF_CAP 4096
+#define DEF_FONTSIZE 12.0f
 
 #define DEG2RAD 0.01745329252
 #define RAD2DEG 57.29577951
@@ -62,15 +60,18 @@ typedef struct {
 	uint16_t        current_fps;
 	char            fps_textbuffer[DEF_FPS_TEXTBUFFER_SIZE];
 	TTF_Font*       font;
+	uint32_t        fontsize;
 	TTF_TextEngine* text_engine;
 	TTF_Text*       hewo;
 	bool            key_cache[KEY_NUM];
-	Shell           std_shell;
 } Engine;
 
 extern SDL_Point screensize;
 extern Player    player;
 extern Engine    engine;
+
+extern SDL_Window*   window;
+extern SDL_Renderer* renderer;
 
 extern const char    EMB_IOSEVKA_FONT[];
 extern const uint8_t EMB_TEXTURE_PLAYER[];
@@ -88,9 +89,13 @@ double get_deltatime_factor(void);
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
-SDL_Point screensize = {DEF_SCREENWIDTH, DEF_SCREENHEIGHT};
-Player    player     = {0};
-Engine    engine     = {0};
+#include <SDL3/SDL_main.h> // Dont move this or DIE
+
+SDL_Point     screensize = {DEF_SCREENWIDTH, DEF_SCREENHEIGHT};
+Player        player     = {0};
+Engine        engine     = {0};
+SDL_Window*   window;
+SDL_Renderer* renderer;
 
 const char EMB_IOSEVKA_FONT[] = {
 #embed "../res/Iosevka-Regular.ttf"
@@ -103,9 +108,6 @@ const uint8_t EMB_TEXTURE_PLAYER[] = {
 Texture textures[TEXTURES_NUM] = {
 	REG_TEXTURE(EMB_TEXTURE_PLAYER),
 };
-
-static SDL_Window*   window   = NULL;
-static SDL_Renderer* renderer = NULL;
 
 SDL_FPoint pointf_add(const SDL_FPoint a, const SDL_FPoint b) {
 	return (SDL_FPoint) {a.x + b.x, a.y + b.y};
@@ -231,8 +233,9 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	// Try setup font file
 	engine.font = TTF_OpenFontIO(
 		SDL_IOFromConstMem(EMB_IOSEVKA_FONT, sizeof(EMB_IOSEVKA_FONT)), true,
-		12.0f
+		DEF_FONTSIZE
 	);
+	engine.fontsize = DEF_FONTSIZE;
 	if(!engine.font) {
 		SDL_Err("Failed to load font");
 		return SDL_APP_FAILURE;
@@ -283,14 +286,9 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	          was too much effort. Therefore, just leave this at 1. Don't
 	          worry about it. (This avoids NaN contamination) */
 	engine.desired_fps = DEF_FPS;
-	if(!shell_init(
-		   &engine.std_shell, DEF_SHELL_INPUTBUF_CAP, DEF_SHELL_HISTBUF_CAP
-	   )) {
-		SDL_Log("Failed to initialize std_shell");
-		return SDL_APP_FAILURE;
-	}
-
 	engine.hewo = TTF_CreateText(engine.text_engine, engine.font, "hewo :3", 0);
+
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
 	return SDL_APP_CONTINUE;
 }

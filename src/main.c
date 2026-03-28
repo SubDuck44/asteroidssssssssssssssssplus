@@ -3,6 +3,7 @@
 #define SDL_MAIN_USE_CALLBACKS
 
 #include <SDL3/SDL.h>
+#include <SDL3_gfx/SDL3_gfxPrimitives.h>
 #include <SDL3_ttf/SDL_ttf.h>
 #include <math.h>
 #include <stdint.h>
@@ -10,6 +11,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#define VSYNC_ON
 #define DEF_SCREENWIDTH 1280
 #define DEF_SCREENHEIGHT 720
 #define DEF_FPS 60
@@ -33,9 +35,19 @@
 #define GET_KEY_PRESSED(key) engine.key_cache[key]
 
 #define PROPER_MOD(x, mod) ((x % mod) + mod) % mod
+#define ROTATE(x) ((x % 360) + 360) % 360
+
+#define KEYS X(W) X(A) X(S) X(D) X(LALT) X(I) X(J) X(K) X(L)
 
 enum Texture_Cache_Textures { TEXTURE_PLAYER, TEXTURES_NUM };
-enum Keys { KEY_W, KEY_A, KEY_S, KEY_D, KEY_NUM };
+enum Keys {
+#define X(x) KEY_##x,
+	KEYS
+#undef X
+		KEY_MOUSE_LEFT,
+	KEY_MOUSE_RIGHT,
+	KEY_NUM,
+};
 
 typedef struct {
 	SDL_Texture*   tex;
@@ -49,7 +61,9 @@ typedef struct {
 	SDL_FPoint   pos;
 	SDL_FPoint   vel;
 	double       rot;
+	float        rot_vel;
 	float        move_speed;
+	float        rot_speed;
 	SDL_Texture* tex;
 } Player;
 
@@ -83,6 +97,8 @@ SDL_FPoint pointf_rotate(const SDL_FPoint a, const float deg);
 float      pointf_length(const SDL_FPoint a);
 SDL_FPoint pointf_normalize(const SDL_FPoint a);
 SDL_FPoint pointf_scale(const SDL_FPoint a, const double scale);
+SDL_FPoint pointf_angle_to(const SDL_FPoint a, const SDL_FPoint b);
+// TODO Add this ^
 
 // Misc engine
 double get_deltatime_factor(void);
@@ -159,14 +175,10 @@ void engine_update_frame(void) {
 		snprintf(fps_string, sizeof(fps_string), "FPS: %d", engine.current_fps);
 		TTF_SetTextString(engine.hewo, fps_string, sizeof(fps_string));
 	}
-	// Move player
+	// Player movement
 	{
-		//		if(GET_KEY_PRESSED(KEY_W))
-		if(GET_KEY_PRESSED(KEY_A))
-			player.rot = PROPER_MOD((int) player.rot - 3, 360);
-		//		if(GET_KEY_PRESSED(KEY_S))
-		if(GET_KEY_PRESSED(KEY_D))
-			player.rot = PROPER_MOD((int) player.rot + 3, 360);
+		if(GET_KEY_PRESSED(KEY_A)) player.rot_vel -= player.rot_speed;
+		if(GET_KEY_PRESSED(KEY_D)) player.rot_vel += player.rot_speed;
 		if(GET_KEY_PRESSED(KEY_W)) {
 			player.vel = pointf_add(
 				pointf_force(
@@ -175,8 +187,33 @@ void engine_update_frame(void) {
 				player.vel
 			);
 		}
+		if(GET_KEY_PRESSED(KEY_I))
+			player.vel = pointf_add(
+				pointf_force(player.move_speed, player.rot), player.vel
+			);
+		if(GET_KEY_PRESSED(KEY_J))
+			player.vel = pointf_add(
+				pointf_force(player.move_speed, ROTATE((int) player.rot - 90)),
+				player.vel
+			);
 
-		player.pos   = pointf_add(player.pos, player.vel);
+		if(GET_KEY_PRESSED(KEY_K))
+			player.vel = pointf_add(
+				pointf_force(player.move_speed, ROTATE((int) player.rot + 180)),
+				player.vel
+			);
+		if(GET_KEY_PRESSED(KEY_L))
+			player.vel = pointf_add(
+				pointf_force(player.move_speed, ROTATE((int) player.rot + 90)),
+				player.vel
+			);
+
+		// TODO find-angle-to vector fuckery here, pls
+
+		player.pos = pointf_add(player.pos, player.vel);
+		player.rot = ROTATE((int) (player.rot + player.rot_vel));
+
+		// TODO Switch these to modfs (or just if it)
 		player.pos.x = PROPER_MOD((int) player.pos.x, screensize.x);
 		player.pos.y = PROPER_MOD((int) player.pos.y, screensize.y);
 	}
@@ -194,6 +231,36 @@ void engine_draw_frame(void) {
 	SDL_RenderTextureRotated(
 		renderer, textures[TEXTURE_PLAYER].tex, &textures[TEXTURE_PLAYER].src,
 		&player_rect, player.rot, &player_ctr, SDL_FLIP_NONE
+	);
+
+	// Draw lateral movement guides
+	if(GET_KEY_PRESSED(KEY_LALT)) {
+		const SDL_FPoint adjusted = pointf_add(player.pos, player_ctr);
+		const SDL_FPoint bow =
+			pointf_add(pointf_force(75, player.rot), adjusted);
+		const SDL_FPoint stern = pointf_add(
+			pointf_force(75, PROPER_MOD((int) player.rot + 180, 360)), adjusted
+		);
+		const SDL_FPoint port = pointf_add(
+			pointf_force(75, PROPER_MOD((int) player.rot - 90, 360)), adjusted
+		);
+		const SDL_FPoint starboard = pointf_add(
+			pointf_force(75, PROPER_MOD((int) player.rot + 90, 360)), adjusted
+		);
+		thickLineRGBA(
+			renderer, bow.x, bow.y, stern.x, stern.y, 3, 25, 60, 165, 255
+		);
+		thickLineRGBA(
+			renderer, port.x, port.y, starboard.x, starboard.y, 3, 25, 60, 165,
+			255
+		);
+	}
+
+	// Draw velocity vector
+	SDL_FPoint dest = pointf_add(player.pos, pointf_scale(player.vel, 10));
+	thickLineColor(
+		renderer, player.pos.x + player_ctr.x, player.pos.y + player_ctr.y,
+		dest.x + player_ctr.x, dest.y + player_ctr.y, 3, 0xFF94DE0A
 	);
 
 	// Draw FPS
@@ -248,11 +315,13 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 		return SDL_APP_FAILURE;
 	}
 
+#ifdef VSYNC_ON
 	// Try setup VSync
 	if(!SDL_SetRenderVSync(renderer, SDL_RENDERER_VSYNC_ADAPTIVE)) {
 		SDL_Err("Failed to activate VSync");
 		return SDL_APP_FAILURE;
 	}
+#endif
 
 	// Try setup textures
 	for(uint32_t i = 0; i < TEXTURES_NUM; i++) {
@@ -277,7 +346,9 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	player.alive      = true;
 	player.pos        = (SDL_FPoint) {screensize.x >> 1, screensize.y >> 1};
 	player.vel        = (SDL_FPoint) {0.0, 0.0};
+	player.rot_vel    = 0.0;
 	player.rot        = 0.0;
+	player.rot_speed  = 0.2;
 	player.move_speed = 0.25;
 
 	engine.last_frame =
@@ -296,45 +367,53 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 	(void) appstate;
 	switch(event->type) {
+	case SDL_EVENT_MOUSE_BUTTON_DOWN:
+		switch(event->button.button) {
+		case SDL_BUTTON_LEFT:
+			engine.key_cache[KEY_MOUSE_LEFT] = true;
+			break;
+		case SDL_BUTTON_RIGHT:
+			engine.key_cache[KEY_MOUSE_RIGHT] = true;
+			break;
+		}
+	case SDL_EVENT_MOUSE_BUTTON_UP:
+		switch(event->button.button) {
+		case SDL_BUTTON_LEFT:
+			engine.key_cache[KEY_MOUSE_LEFT] = false;
+			break;
+		case SDL_BUTTON_RIGHT:
+			engine.key_cache[KEY_MOUSE_RIGHT] = false;
+			break;
+		}
 	case SDL_EVENT_KEY_DOWN:
 		switch(event->key.key) {
 		case SDLK_ESCAPE:
 			// Manual quit from the window
 			return SDL_APP_SUCCESS;
-		case SDLK_W:
-			engine.key_cache[KEY_W] = true;
-			break;
-		case SDLK_A:
-			engine.key_cache[KEY_A] = true;
-			break;
-		case SDLK_S:
-			engine.key_cache[KEY_S] = true;
-			break;
-		case SDLK_D:
-			engine.key_cache[KEY_D] = true;
-			break;
+#define X(x)                                                                   \
+	case SDLK_##x:                                                             \
+		engine.key_cache[KEY_##x] = true;                                      \
+		break;
+			KEYS
+#undef X
 		}
 		break;
+
 	case SDL_EVENT_KEY_UP:
 		switch(event->key.key) {
-		case SDLK_W:
-			engine.key_cache[KEY_W] = false;
-			break;
-		case SDLK_A:
-			engine.key_cache[KEY_A] = false;
-			break;
-		case SDLK_S:
-			engine.key_cache[KEY_S] = false;
-			break;
-		case SDLK_D:
-			engine.key_cache[KEY_D] = false;
-			break;
+#define X(x)                                                                   \
+	case SDLK_##x:                                                             \
+		engine.key_cache[KEY_##x] = false;                                     \
+		break;
+			KEYS
+#undef X
 		}
 		break;
 	case SDL_EVENT_QUIT:
 		// If system sends quit event (e.g. closing the window from the OS)
 		return SDL_APP_SUCCESS;
 	}
+
 	return SDL_APP_CONTINUE;
 }
 
@@ -349,6 +428,14 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 
 	// Stop frame timer
 	engine.last_frame = SDL_GetTicksNS() - frametime_start;
+
+	const uint64_t desired_frametime = 1'000'000'000 / engine.desired_fps;
+	if(engine.last_frame < desired_frametime) {
+		const uint64_t frame_diff = desired_frametime - engine.last_frame;
+		SDL_DelayPrecise(frame_diff);
+		engine.last_frame += frame_diff;
+	}
+
 	engine.current_fps =
 		(((double) (1'000'000'000) / engine.last_frame) + engine.current_fps) /
 		2;

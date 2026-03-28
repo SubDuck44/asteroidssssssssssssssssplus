@@ -12,22 +12,22 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 - Basic debug UI w/ text [Complete!]
 - Vector2 based movement controller [Complete!]
 - Persistent key input handling [Complete!]
-- Vector drawing (prograde, normal) [Pending…]
+- Vector drawing (prograde, lateral guides) [Complete!]
+- Lateral-Rotational movement controller (angular velocity) [Complete!]
+- Hold Mouse 1 for nose follow [Pending…]
+- FPS regulation (without VSync) [Complete!]
+- Parallax backgrounds (stars, rocks) [Pending…]
 ** Far roadmap
 *** Player movement upgrade
-- Advanced movement controller [Pending…]
 - Thruster sprites [Pending…]
 - Slight inaccuracies in thruster output [Pending…]
-- Vector indicators [Pending…]
 - Nose-follows-mouse [Pending…]
 *** Engine
 - Spawning and simulating asteroids [Pending…]
 - Loading in chunks [Pending…]
 - Collision in chunks [Pending…]
 - Serializing chunk data to savefiles [Pending…]
-- Parallax graphics (far objects) [Pending…]
 - Multithreading (for independent rendering/physics) [Pending…]
-- FPS Compensation [Pending…]
 *** UI
 - Text drawing w/ custom font [Pending…]
 - Animated panels (curve controllers) [Pending…]

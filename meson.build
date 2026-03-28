@@ -13,6 +13,7 @@ executable(
 	dependencies: [
 		dependency('sdl3'),
 		dependency('sdl3-ttf'),
+		dependency('sdl3-gfx'),
 	],
 	link_args: [
 		'-lm',

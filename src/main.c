@@ -18,8 +18,8 @@
 #define DEF_FPS_TEXTBUFFER_SIZE 64
 #define DEF_FONTSIZE 12.0f
 
-#define DEG2RAD 0.01745329252
-#define RAD2DEG 57.29577951
+#define RAD2DEG (180 / M_PI)
+#define DEG2RAD (1 / RAD2DEG)
 
 #define SDL_Err(fmt, ...)                                                      \
 	do {                                                                       \
@@ -78,6 +78,7 @@ typedef struct {
 	TTF_TextEngine* text_engine;
 	TTF_Text*       hewo;
 	bool            key_cache[KEY_NUM];
+	SDL_FPoint      mouse_pos;
 } Engine;
 
 extern SDL_Point screensize;
@@ -92,13 +93,13 @@ extern const uint8_t EMB_TEXTURE_PLAYER[];
 extern Texture       textures[TEXTURES_NUM];
 
 // Vector magic
-SDL_FPoint pointf_add(const SDL_FPoint a, const SDL_FPoint b);
-SDL_FPoint pointf_rotate(const SDL_FPoint a, const float deg);
-float      pointf_length(const SDL_FPoint a);
-SDL_FPoint pointf_normalize(const SDL_FPoint a);
-SDL_FPoint pointf_scale(const SDL_FPoint a, const double scale);
-SDL_FPoint pointf_angle_to(const SDL_FPoint a, const SDL_FPoint b);
-// TODO Add this ^
+SDL_FPoint pointf_add(SDL_FPoint a, SDL_FPoint b);
+SDL_FPoint pointf_rotate(SDL_FPoint a, float deg);
+SDL_FPoint pointf_normalize(SDL_FPoint a);
+SDL_FPoint pointf_scale(SDL_FPoint a, double scale);
+SDL_FPoint pointf_angle_to(SDL_FPoint a, SDL_FPoint b);
+float      pointf_length(SDL_FPoint a);
+float      pointf_bearing(SDL_FPoint zero, SDL_FPoint tgt);
 
 // Misc engine
 double get_deltatime_factor(void);
@@ -125,23 +126,17 @@ Texture textures[TEXTURES_NUM] = {
 	REG_TEXTURE(EMB_TEXTURE_PLAYER),
 };
 
-SDL_FPoint pointf_add(const SDL_FPoint a, const SDL_FPoint b) {
+SDL_FPoint pointf_add(SDL_FPoint a, SDL_FPoint b) {
 	return (SDL_FPoint) {a.x + b.x, a.y + b.y};
 }
 
-SDL_FPoint pointf_rotate(const SDL_FPoint a, const float deg) {
+SDL_FPoint pointf_rotate(SDL_FPoint a, float deg) {
 	const float x = (a.x * cos(deg * DEG2RAD)) - (a.y * sin(deg * DEG2RAD));
 	const float y = (a.x * sin(deg * DEG2RAD)) + (a.y * cos(deg * DEG2RAD));
 	return (SDL_FPoint) {x, y};
 }
 
-float pointf_length(const SDL_FPoint a) {
-	const float length = sqrt((a.x * a.x) + (a.y * a.y));
-	if(length <= SDL_FLT_EPSILON) return 0.0f;
-	return length;
-}
-
-SDL_FPoint pointf_normalize(const SDL_FPoint a) {
+SDL_FPoint pointf_normalize(SDL_FPoint a) {
 	const float length = sqrt((a.x * a.x) + (a.y * a.y));
 	if(length <= SDL_FLT_EPSILON) return a;
 	const float x = a.x / length;
@@ -149,19 +144,31 @@ SDL_FPoint pointf_normalize(const SDL_FPoint a) {
 	return (SDL_FPoint) {x, y};
 }
 
-SDL_FPoint pointf_scale(const SDL_FPoint a, const double scale) {
-	if(scale <= SDL_FLT_EPSILON || pointf_length(a) <= SDL_FLT_EPSILON)
+SDL_FPoint pointf_scale(SDL_FPoint a, double scale) {
+	if(scale == SDL_FLT_EPSILON || pointf_length(a) <= SDL_FLT_EPSILON)
 		return a;
 	float x = a.x * scale;
 	float y = a.y * scale;
 	return (SDL_FPoint) {x, y};
 }
 
-SDL_FPoint pointf_force(const float magnitude, const float rotation) {
+SDL_FPoint pointf_force(float magnitude, float rotation) {
 	SDL_FPoint vec = (SDL_FPoint) {0.0f, -1.0};
 	vec            = pointf_scale(vec, magnitude);
 	vec            = pointf_rotate(vec, rotation);
 	return vec;
+}
+
+float pointf_length(SDL_FPoint a) {
+	const float length = sqrt((a.x * a.x) + (a.y * a.y));
+	if(length <= SDL_FLT_EPSILON) return 0.0f;
+	return length;
+}
+
+float pointf_bearing(SDL_FPoint zero, SDL_FPoint tgt) {
+	float angle = atan2(tgt.x - zero.x, zero.y - tgt.y) * RAD2DEG;
+	if(angle < 0) angle += 360;
+	return angle;
 }
 
 double get_deltatime_factor(void) {
@@ -207,8 +214,9 @@ void engine_update_frame(void) {
 				pointf_force(player.move_speed, ROTATE((int) player.rot + 90)),
 				player.vel
 			);
-
-		// TODO find-angle-to vector fuckery here, pls
+		if(GET_KEY_PRESSED(KEY_MOUSE_LEFT)) {
+			player.rot = pointf_bearing(player.pos, engine.mouse_pos);
+		}
 
 		player.pos = pointf_add(player.pos, player.vel);
 		player.rot = ROTATE((int) (player.rot + player.rot_vel));
@@ -221,7 +229,8 @@ void engine_update_frame(void) {
 
 void engine_draw_frame(void) {
 	SDL_FRect  player_rect = {player.pos.x, player.pos.y, 50, 50};
-	SDL_FPoint player_ctr  = {25, 25};
+	SDL_FPoint player_off  = {25, 25};
+	SDL_FPoint player_ctr  = pointf_add(player.pos, player_off);
 	// Grey background
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
@@ -229,23 +238,23 @@ void engine_draw_frame(void) {
 	// Draw player
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
 	SDL_RenderTextureRotated(
-		renderer, textures[TEXTURE_PLAYER].tex, &textures[TEXTURE_PLAYER].src,
-		&player_rect, player.rot, &player_ctr, SDL_FLIP_NONE
+		renderer, TEX_PLAYER.tex, NULL, &player_rect, player.rot, &player_off,
+		SDL_FLIP_NONE
 	);
 
 	// Draw lateral movement guides
 	if(GET_KEY_PRESSED(KEY_LALT)) {
-		const SDL_FPoint adjusted = pointf_add(player.pos, player_ctr);
 		const SDL_FPoint bow =
-			pointf_add(pointf_force(75, player.rot), adjusted);
+			pointf_add(pointf_force(75, player.rot), player_ctr);
 		const SDL_FPoint stern = pointf_add(
-			pointf_force(75, PROPER_MOD((int) player.rot + 180, 360)), adjusted
+			pointf_force(75, PROPER_MOD((int) player.rot + 180, 360)),
+			player_ctr
 		);
 		const SDL_FPoint port = pointf_add(
-			pointf_force(75, PROPER_MOD((int) player.rot - 90, 360)), adjusted
+			pointf_force(75, PROPER_MOD((int) player.rot - 90, 360)), player_ctr
 		);
 		const SDL_FPoint starboard = pointf_add(
-			pointf_force(75, PROPER_MOD((int) player.rot + 90, 360)), adjusted
+			pointf_force(75, PROPER_MOD((int) player.rot + 90, 360)), player_ctr
 		);
 		thickLineRGBA(
 			renderer, bow.x, bow.y, stern.x, stern.y, 3, 25, 60, 165, 255
@@ -257,10 +266,13 @@ void engine_draw_frame(void) {
 	}
 
 	// Draw velocity vector
-	SDL_FPoint dest = pointf_add(player.pos, pointf_scale(player.vel, 10));
+	SDL_FPoint dest  = pointf_add(player_ctr, pointf_scale(player.vel, 10));
+	SDL_FPoint dest2 = pointf_add(player_ctr, pointf_scale(player.vel, -10));
 	thickLineColor(
-		renderer, player.pos.x + player_ctr.x, player.pos.y + player_ctr.y,
-		dest.x + player_ctr.x, dest.y + player_ctr.y, 3, 0xFF94DE0A
+		renderer, player_ctr.x, player_ctr.y, dest.x, dest.y, 3, 0xFF94DE0A
+	);
+	thickLineColor(
+		renderer, player_ctr.x, player_ctr.y, dest2.x, dest2.y, 3, 0xFFD2DB27
 	);
 
 	// Draw FPS
@@ -367,6 +379,9 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 	(void) appstate;
 	switch(event->type) {
+	case SDL_EVENT_MOUSE_MOTION:
+		engine.mouse_pos = (SDL_FPoint) {event->motion.x, event->motion.y};
+		break;
 	case SDL_EVENT_MOUSE_BUTTON_DOWN:
 		switch(event->button.button) {
 		case SDL_BUTTON_LEFT:
@@ -376,6 +391,8 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 			engine.key_cache[KEY_MOUSE_RIGHT] = true;
 			break;
 		}
+		break;
+
 	case SDL_EVENT_MOUSE_BUTTON_UP:
 		switch(event->button.button) {
 		case SDL_BUTTON_LEFT:
@@ -385,11 +402,14 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 			engine.key_cache[KEY_MOUSE_RIGHT] = false;
 			break;
 		}
+		break;
+
 	case SDL_EVENT_KEY_DOWN:
 		switch(event->key.key) {
 		case SDLK_ESCAPE:
 			// Manual quit from the window
 			return SDL_APP_SUCCESS;
+
 #define X(x)                                                                   \
 	case SDLK_##x:                                                             \
 		engine.key_cache[KEY_##x] = true;                                      \
@@ -409,6 +429,7 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 #undef X
 		}
 		break;
+
 	case SDL_EVENT_QUIT:
 		// If system sends quit event (e.g. closing the window from the OS)
 		return SDL_APP_SUCCESS;

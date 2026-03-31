@@ -14,7 +14,7 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 - Persistent key input handling [Complete!]
 - Vector drawing (prograde, lateral guides) [Complete!]
 - Lateral-Rotational movement controller (angular velocity) [Complete!]
-- Hold Mouse 1 for nose follow [Pending…]
+- Hold Mouse 1 for nose follow [Complete!]
 - FPS regulation (without VSync) [Complete!]
 - Parallax backgrounds (stars, rocks) [Pending…]
 ** Far roadmap

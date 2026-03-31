@@ -1,13 +1,15 @@
 #pragma once
 
+#define _DEFAULT_SOURCE
+
 #include "res.c"
 
-#define SDL_MAIN_USE_CALLBACKS
+#include <endian.h>
+#include <stdio.h>
 
 #include <SDL3/SDL.h>
 #include <SDL3_gfx/SDL3_gfxPrimitives.h>
 #include <SDL3_ttf/SDL_ttf.h>
-#include <stdio.h>
 
 #define VSYNC_ON
 #define DEF_SCREENWIDTH 1280
@@ -91,6 +93,7 @@ double get_deltatime_factor(void);
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
+#define SDL_MAIN_USE_CALLBACKS
 #include <SDL3/SDL_main.h> // Dont move this or DIE
 
 SDL_Point     screensize = {DEF_SCREENWIDTH, DEF_SCREENHEIGHT};
@@ -245,11 +248,21 @@ void engine_draw_frame(void) {
 	// Draw velocity vector
 	SDL_FPoint dest  = pointf_add(player_ctr, pointf_scale(player.vel, 10));
 	SDL_FPoint dest2 = pointf_add(player_ctr, pointf_scale(player.vel, -10));
+	SDL_FRect  dest_icantbefucked = {dest.x - 12.5f, dest.y - 12.5f, 25, 25};
+	SDL_FRect  dest_icantbefucked2eletricboogaloo = {
+        dest2.x - 12.5f, dest2.y - 12.5f, 25, 25
+    };
 	thickLineColor(
-		renderer, player_ctr.x, player_ctr.y, dest.x, dest.y, 3, 0xFF94DE0A
+		renderer, player_ctr.x, player_ctr.y, dest.x, dest.y, 3,
+		htobe32(0x94DE0AFF)
 	);
+	SDL_RenderTexture(renderer, TEX_PROGRADE.tex, NULL, &dest_icantbefucked);
 	thickLineColor(
-		renderer, player_ctr.x, player_ctr.y, dest2.x, dest2.y, 3, 0xFFD2DB27
+		renderer, player_ctr.x, player_ctr.y, dest2.x, dest2.y, 3,
+		htobe32(0xD2DB27FF)
+	);
+	SDL_RenderTexture(
+		renderer, TEX_RETROGRADE.tex, NULL, &dest_icantbefucked2eletricboogaloo
 	);
 
 	// Draw FPS

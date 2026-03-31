@@ -21,8 +21,10 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 *** Player movement upgrade
 - Thruster sprites [Pending…]
 - Slight inaccuracies in thruster output [Pending…]
-- Nose-follows-mouse [Pending…]
 *** Engine
+- Camera (zoom, pan, shake) [Pending…]
+- Utterly /obliterate/ floating point worries [Pending…]
+- Maybe uhh… ADD ASTEROIDS [Pending…]
 - Spawning and simulating asteroids [Pending…]
 - Loading in chunks [Pending…]
 - Collision in chunks [Pending…]

@@ -1,15 +1,13 @@
 #pragma once
 
+#include "res.c"
+
 #define SDL_MAIN_USE_CALLBACKS
 
 #include <SDL3/SDL.h>
 #include <SDL3_gfx/SDL3_gfxPrimitives.h>
 #include <SDL3_ttf/SDL_ttf.h>
-#include <math.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
 
 #define VSYNC_ON
 #define DEF_SCREENWIDTH 1280
@@ -29,9 +27,6 @@
 		);                                                                     \
 	} while(0)
 
-#define REG_TEXTURE(tex_embed_var)                                             \
-	{NULL, tex_embed_var, sizeof(tex_embed_var), {0.0f, 0.0f, 0.0f, 0.0f}}
-
 #define GET_KEY_PRESSED(key) engine.key_cache[key]
 
 #define PROPER_MOD(x, mod) ((x % mod) + mod) % mod
@@ -39,7 +34,6 @@
 
 #define KEYS X(W) X(A) X(S) X(D) X(LALT) X(I) X(J) X(K) X(L)
 
-enum Texture_Cache_Textures { TEXTURE_PLAYER, TEXTURES_NUM };
 enum Keys {
 #define X(x) KEY_##x,
 	KEYS
@@ -48,13 +42,6 @@ enum Keys {
 	KEY_MOUSE_RIGHT,
 	KEY_NUM,
 };
-
-typedef struct {
-	SDL_Texture*   tex;
-	const uint8_t* tex_data;
-	size_t         tex_size;
-	SDL_FRect      src;
-} Texture;
 
 typedef struct {
 	bool         alive;
@@ -88,9 +75,7 @@ extern Engine    engine;
 extern SDL_Window*   window;
 extern SDL_Renderer* renderer;
 
-extern const char    EMB_IOSEVKA_FONT[];
-extern const uint8_t EMB_TEXTURE_PLAYER[];
-extern Texture       textures[TEXTURES_NUM];
+extern const char EMB_IOSEVKA_FONT[];
 
 // Vector magic
 SDL_FPoint pointf_add(SDL_FPoint a, SDL_FPoint b);
@@ -116,14 +101,6 @@ SDL_Renderer* renderer;
 
 const char EMB_IOSEVKA_FONT[] = {
 #embed "../res/Iosevka-Regular.ttf"
-};
-
-const uint8_t EMB_TEXTURE_PLAYER[] = {
-#embed "../res/player.png"
-};
-
-Texture textures[TEXTURES_NUM] = {
-	REG_TEXTURE(EMB_TEXTURE_PLAYER),
 };
 
 SDL_FPoint pointf_add(SDL_FPoint a, SDL_FPoint b) {
@@ -336,21 +313,21 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 #endif
 
 	// Try setup textures
-	for(uint32_t i = 0; i < TEXTURES_NUM; i++) {
+	for(uint32_t i = 0; i < TEXTURES_COUNT; i++) {
 		SDL_Surface* surface = SDL_LoadPNG_IO(
-			SDL_IOFromConstMem(textures[i].tex_data, textures[i].tex_size), true
+			SDL_IOFromConstMem(TEXTURES[i]->tex_data, TEXTURES[i]->tex_size),
+			true
 		);
 		if(!surface) {
 			SDL_Err("Failed to load texture %d into RAM", i);
 			return SDL_APP_FAILURE;
 		}
-		textures[i].tex = SDL_CreateTextureFromSurface(renderer, surface);
-		if(!textures[i].tex) {
+		TEXTURES[i]->tex = SDL_CreateTextureFromSurface(renderer, surface);
+		if(!TEXTURES[i]->tex) {
 			SDL_Err("Failed to load texture %d into VRAM", i);
 			SDL_DestroySurface(surface);
 			return SDL_APP_FAILURE;
 		}
-		textures[i].src = (SDL_FRect) {0.0f, 0.0f, surface->w, surface->h};
 		SDL_DestroySurface(surface);
 	}
 

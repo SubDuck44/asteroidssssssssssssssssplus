@@ -39,6 +39,10 @@
             ];
           };
 
+          prePatch = ''
+            patchShebangs src/gen_res.sh
+          '';
+
           nativeBuildInputs = with pkgs; [
             meson
             ninja

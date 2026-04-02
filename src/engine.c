@@ -35,7 +35,7 @@ typedef struct {
 	uint32_t type;
 	void*    data;
 } GameObject;
-typedef Error (*Method)(GameObject* parent, uint32_t index);
+typedef Error (*Method)(void* data, uint32_t index);
 typedef struct {
 	Method func;
 	void*  argv;
@@ -79,6 +79,8 @@ extern SDL_FPoint Eng_mouse_pos;
 // KEY input handling END
 
 extern SDL_Point Eng_screensize;
+
+#include "main.c"
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
@@ -183,8 +185,11 @@ SDL_AppResult Eng_TickInput(SDL_Event* event) {
 Process all callbacks in the update_callbacks queue
 */
 Error Eng_TickOnce(void) {
+	// Grey background
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+	SDL_RenderClear(renderer);
+
 	for(uint32_t i = 0; i < update_callbacks_len; i++) {
-		SDL_Log("Found: %p", update_callbacks[i].argv);
 		if(update_callbacks[i].func(update_callbacks[i].argv, i) == ERR_FATAL) {
 			return ERR_FATAL;
 		}
@@ -235,8 +240,7 @@ Error Eng_create_object(
 
 	memcpy(data, src, data_size);
 	game_objects[game_objects_len] = (GameObject) {type, data};
-	SDL_Log("Gave %p", data);
-	*new_ref = data;
+	*new_ref                       = data;
 	game_objects_len++;
 	return ERR_PASS;
 }

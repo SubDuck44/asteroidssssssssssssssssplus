@@ -16,6 +16,8 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 - Lateral-Rotational movement controller (angular velocity) [Complete!]
 - Hold Mouse 1 for nose follow [Complete!]
 - FPS regulation (without VSync) [Complete!]
+- Camera system (with layers) [Pending…]
+- Groundwork for persistent data serialization [Pending…]
 - Parallax backgrounds (stars, rocks) [Pending…]
 ** Far roadmap
 *** Player movement upgrade

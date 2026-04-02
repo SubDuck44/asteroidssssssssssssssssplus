@@ -62,6 +62,8 @@
           packages = with pkgs; [
             clang-tools
             just
+            gdb
+            valgrind
           ];
         };
       }

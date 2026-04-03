@@ -1,8 +1,38 @@
 #pragma once
 
+#define APPLICATION_TITLE "Asteroidssssssssssssssss+"
 #define _DEFAULT_SOURCE
 #define ERR_FATAL false
 #define ERR_PASS true
+#define CODE_ERROR "[1;31m"
+#define CODE_WARN "[1;33m"
+#define CODE_SUCCESS "[1;32m"
+#define CODE_END "[m"
+#define ASSERT_PREDICATE(predicate, catch, success, error)                     \
+	do {                                                                       \
+		if(!(predicate)) {                                                     \
+			SDL_Log(error);                                                    \
+			catch                                                              \
+		} else {                                                               \
+			SDL_Log(success);                                                  \
+		}                                                                      \
+	} while(0)
+#define ASSERT_PREDICATE_SDL(predicate, catch, success, error)                 \
+	do {                                                                       \
+		if(!(predicate)) {                                                     \
+			SDL_Err(error);                                                    \
+			catch                                                              \
+		} else {                                                               \
+			SDL_Log(success);                                                  \
+		}                                                                      \
+	} while(0)
+#define SDL_Err(fmt, ...)                                                      \
+	do {                                                                       \
+		SDL_LogError(                                                          \
+			SDL_LOG_CATEGORY_APPLICATION, fmt ": %s",                          \
+			__VA_ARGS__ __VA_OPT__(, ) SDL_GetError()                          \
+		);                                                                     \
+	} while(0)
 
 #define RAD2DEG (180 / M_PI)
 #define DEG2RAD (1 / RAD2DEG)
@@ -129,111 +159,143 @@ SDL_Point Eng_screensize = {DEFAULT_SCREENWIDTH, DEFAULT_SCREENHEIGHT};
 // Control flow ================================================================
 
 /* Initialize the engine, required for… well… everything in it to work */
-SDL_AppResult Eng_Init(void) {
-	// Allocate essential queues
-	SDL_Log(
-		"INFO: Starting engine…\nINFO: Allocating GameObject+UpdateHook "
-		"queues…\n"
+SDL_AppResult Eng_init(void) {
+	SDL_Log("INFO: Initializing " APPLICATION_TITLE "…");
+	bool fatal_error = false;
+
+	// Try allocate memory for GameObject queue
+	ASSERT_PREDICATE(
+		(game_objects =
+	         calloc(DEFAULT_GAMEOBJECT_QUEUE_CAP, sizeof(game_objects[0]))),
+		fatal_error = true;
+		,
+		CODE_SUCCESS
+		"INFO: Successfully allocated memory for GameObject queue" CODE_END,
+		CODE_ERROR
+		"FATAL: Failed to allocate memory for GameObject queue" CODE_END
 	);
-	if((game_objects =
-	        calloc(DEFAULT_GAMEOBJECT_QUEUE_CAP, sizeof(game_objects[0]))) ==
-	   NULL) {
-		SDL_Log("FATAL: Failed to allocate GameObject queue, aborting…\n");
-		return SDL_APP_FAILURE;
-	}
-	if((update_callbacks = calloc(
+
+	// Try allocate memory for UpdateHook queue
+	ASSERT_PREDICATE(
+		update_callbacks = calloc(
 			DEFAULT_UPDATECALLBACK_QUEUE_CAP, sizeof(update_callbacks[0])
-		)) == NULL) {
-		SDL_Log("FATAL: Failed to allocate UpdateHook queue, aborting\n…");
-		return SDL_APP_FAILURE;
-	}
-	SDL_Log("INFO: Successfully initialized GameObject+UpdateHook queues!");
+		),
+		fatal_error = true;
+		,
+		CODE_SUCCESS
+		"INFO: Successfully allocated memory for UpdateHook queue" CODE_END,
+		CODE_ERROR
+		"FATAL: Failed to allocate memory for UpdateHook queue" CODE_END
+	);
 
 	// Try setup main SDL lib
-	SDL_Log("INFO: Starting SDL…");
-	if(!SDL_Init(SDL_INIT_VIDEO)) {
-		SDL_Err("FATAL: Failed to initialize SDL, aborting");
-		return SDL_APP_FAILURE;
-	}
-	SDL_Log("INFO: Successfully initialized SDL!");
+	ASSERT_PREDICATE_SDL(SDL_Init(SDL_INIT_VIDEO), fatal_error = true;
+	                     ,
+	                     CODE_SUCCESS
+	                     "INFO: Successfully initialized SDL" CODE_END,
+	                     CODE_ERROR "FATAL: Failed to initialize SDL" CODE_END);
 
 	// Try setup window
-	if(!SDL_CreateWindowAndRenderer(
-		   "Asteroidssssssssssssssss+", 1280, 720, 0, &window, &renderer
-	   )) {
-		SDL_Err("FATAL: Failed to initizalized window/renderer");
-		return SDL_APP_FAILURE;
-	}
-	SDL_Log("INFO: Successfully initialized window/renderer!");
+	ASSERT_PREDICATE_SDL(
+		SDL_CreateWindowAndRenderer(
+			"Asteroidssssssssssssssss+", 1280, 720, 0, &window, &renderer
+		),
+		fatal_error = true;
+		,
+		CODE_SUCCESS "INFO: Successfully initialized window/renderer" CODE_END,
+		CODE_ERROR "FATAL: Failed to initialize window/renderer" CODE_END
+	);
 
 	// Disable AA
 	SDL_SetDefaultTextureScaleMode(renderer, SDL_SCALEMODE_PIXELART);
 
 	// Try setup font lib
-	SDL_Log("INFO: Starting TTF…");
-	if(!TTF_Init()) {
-		SDL_Err("FATAL: Failed to start TTF, aborting");
-		return SDL_APP_FAILURE;
-	}
-	SDL_Log("INFO: Succcessfully started TTF!");
+	ASSERT_PREDICATE(
+		TTF_Init(), fatal_error = true;
+		, CODE_SUCCESS "INFO: Successfully started TTF" CODE_END,
+		CODE_ERROR "FATAL: Failed to start TTF" CODE_END
+	);
 
 	// Try setup font file
-	SDL_Log("INFO: Loading font…");
-	Eng_font = TTF_OpenFontIO(
-		SDL_IOFromConstMem(EMB_IOSEVKA_FONT, sizeof(EMB_IOSEVKA_FONT)), true,
-		DEF_FONTSIZE
+	ASSERT_PREDICATE(
+		Eng_font = TTF_OpenFontIO(
+			SDL_IOFromConstMem(EMB_IOSEVKA_FONT, sizeof(EMB_IOSEVKA_FONT)),
+			true, DEFAULT_FONTSIZE
+		),
+		fatal_error = true;
+		, CODE_SUCCESS "INFO: Successfully loaded font" CODE_END,
+		CODE_ERROR "FATAL: Failed to load font" CODE_END
 	);
-	fontsize = DEF_FONTSIZE;
-	if(!Eng_font) {
-		SDL_Err("FATAL: Failed to load font, aborting");
-		return SDL_APP_FAILURE;
-	}
-	SDL_Log("INFO: Successfully loaded font!");
+	fontsize = DEFAULT_FONTSIZE;
 
 	// Try setup text engine
-	SDL_Log("INFO: Initializing font engine…");
-	Eng_text_engine = TTF_CreateRendererTextEngine(renderer);
-	if(!Eng_text_engine) {
-		SDL_Err("Failed to initialize text engine..");
-		return SDL_APP_FAILURE;
-	}
-	SDL_Log("INFO: Successfully started font engine!");
+	ASSERT_PREDICATE(
+		Eng_text_engine = TTF_CreateRendererTextEngine(renderer),
+		fatal_error     = true;
+		, CODE_SUCCESS "INFO: Successfully initialized font engine" CODE_END,
+		CODE_ERROR "FATAL: Failed to initialize font engine" CODE_END
+	);
 
 #ifdef VSYNC_ON
 	// Try setup VSync
-	SDL_Log("INFO: Trying to enable VSync…");
-	if(!SDL_SetRenderVSync(renderer, SDL_RENDERER_VSYNC_ADAPTIVE)) {
-		SDL_Err("WARNING: Failed to activate VSync");
-	} else {
-		SDL_Log("INFO: Successfully enabled VSync!");
-	}
+	ASSERT_PREDICATE_SDL(
+		SDL_SetRenderVSync(renderer, SDL_RENDERER_VSYNC_ADAPTIVE), ;
+		, CODE_SUCCESS "INFO: Successfully enabled VSync" CODE_END,
+		CODE_WARNING "WARNING: Failed to enable VSync" CODE_END
+	);
 #endif
 
 	// Try setup textures
-	SDL_Log("INFO: Loading textures…");
+	bool texture_failed = false;
+
 	for(uint32_t i = 0; i < TEXTURES_COUNT; i++) {
 		SDL_Surface* surface = SDL_LoadPNG_IO(
 			SDL_IOFromConstMem(TEXTURES[i]->tex_data, TEXTURES[i]->tex_size),
 			true
 		);
 		if(!surface) {
-			SDL_Err("FATAL: Failed to load texture %d into RAM", i);
-			return SDL_APP_FAILURE;
-		}
-		TEXTURES[i]->tex = SDL_CreateTextureFromSurface(renderer, surface);
-		if(!TEXTURES[i]->tex) {
-			SDL_Err("FATAL: Failed to load texture %d into VRAM", i);
+			SDL_Err(
+				CODE_ERROR "FATAL: Failed to load texture %d into RAM" CODE_END,
+				i
+			);
+			fatal_error    = true;
+			texture_failed = true;
+		} else {
+			TEXTURES[i]->tex = SDL_CreateTextureFromSurface(renderer, surface);
+			if(!TEXTURES[i]->tex) {
+				SDL_Err(
+					CODE_ERROR
+					"FATAL: Failed to load texture %d into VRAM" CODE_END,
+					i
+				);
+				fatal_error    = true;
+				texture_failed = true;
+			}
 			SDL_DestroySurface(surface);
-			return SDL_APP_FAILURE;
 		}
-		SDL_DestroySurface(surface);
 	}
-	SDL_Log("INFO: Successfully initialized %d textures!", TEXTURES_COUNT);
+	if(!texture_failed)
+		SDL_Log(
+			CODE_SUCCESS "INFO: Successfully initialized %d textures" CODE_END,
+			TEXTURES_COUNT
+		);
 
+	// Arbitrary initializations
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
-	SDL_Log("INFO: Green across the board, launching…");
+	ASSERT_PREDICATE(
+		!fatal_error, return SDL_APP_FAILURE;
+		, CODE_SUCCESS "INFO: Green across the board, launching…" CODE_END,
+		CODE_ERROR
+		"FATAL: Caught one or more fatal exceptions, aborting…" CODE_END
+	);
+	SDL_Log("INFO: Welcome to " APPLICATION_TITLE "!");
 	return SDL_APP_CONTINUE;
+}
+
+/* Runs at the end of the program. */
+void Eng_exit(void) {
+	SDL_Log("INFO: Shutting down…");
 }
 
 /*
@@ -241,7 +303,7 @@ Run all input capturing events, return value MUST be returned from
 SDL_AppEvent()
 SDL_Event* event: Pass SDL_Event* from SDL_AppEvent()
  */
-SDL_AppResult Eng_TickInput(SDL_Event* event) {
+SDL_AppResult Eng_tick_input(SDL_Event* event) {
 	switch(event->type) {
 	case SDL_EVENT_MOUSE_MOTION:
 		Eng_mouse_pos = (SDL_FPoint) {event->motion.x, event->motion.y};
@@ -272,6 +334,7 @@ SDL_AppResult Eng_TickInput(SDL_Event* event) {
 		switch(event->key.key) {
 		case SDLK_ESCAPE:
 			// Manual quit from the window
+			SDL_Log("INFO: Escape pressed, exiting…");
 			return SDL_APP_SUCCESS;
 
 #define X(x)                                                                   \
@@ -296,6 +359,7 @@ SDL_AppResult Eng_TickInput(SDL_Event* event) {
 
 	case SDL_EVENT_QUIT:
 		// If system sends quit event (e.g. closing the window from the OS)
+		SDL_Log("INFO: Received termination request from system, exiting…");
 		return SDL_APP_SUCCESS;
 	}
 
@@ -350,8 +414,9 @@ Error Eng_create_object(
 ) {
 	if(!src) {
 		SDL_Log(
-			"Tried to create GameObject of type %d with null data: %p", type,
-			src
+			CODE_ERROR "ERROR: Tried to create GameObject of type %d with null "
+					   "data: %p" CODE_END,
+			type, src
 		);
 		return ERR_PASS;
 	}
@@ -362,8 +427,9 @@ Error Eng_create_object(
 		);
 		if(!tmp) {
 			SDL_Log(
-				"Failed to allocate memory for GameObject queue expansion from "
-				"%d to %d",
+				CODE_ERROR "ERROR: Failed to allocate memory for GameObject "
+						   "queue expansion from "
+						   "%d to %d" CODE_END,
 				game_objects_cap, game_objects_cap * 2
 			);
 			return ERR_FATAL;
@@ -374,7 +440,11 @@ Error Eng_create_object(
 	void* data = malloc(data_size);
 
 	if(!data) {
-		SDL_Log("Failed to allocate memory for GameObject of type %d", type);
+		SDL_Log(
+			CODE_ERROR "ERROR: Failed to allocate memory for GameObject of "
+					   "type %d" CODE_END,
+			type
+		);
 		return ERR_FATAL;
 	}
 
@@ -392,13 +462,20 @@ uint32_t target: Give uint32 to index target GameObject in game_objects array
 Error Eng_destroy_object(uint32_t target) {
 	if(target >= game_objects_len) {
 		SDL_Log(
-			"Tried to destroy invalid GameObject %d: Index out of range", target
+			CODE_ERROR
+			"ERROR: Tried to destroy invalid GameObject %d: Index out of "
+			"range" CODE_END,
+			target
 		);
 		return ERR_PASS;
 	}
 
 	if(!game_objects[target].data) {
-		SDL_Log("Tried to destroy GameObject %d with null data", target);
+		SDL_Log(
+			CODE_ERROR
+			"ERROR. Tried to destroy GameObject %d with null data" CODE_END,
+			target
+		);
 		return ERR_PASS;
 	}
 	free(game_objects[target].data);
@@ -417,7 +494,10 @@ void* data:  Give optional varargs as argument to callback
 */
 Error Eng_hook_update(Method func, void* data) {
 	if(!func) {
-		SDL_Log("Tried to hook UpdateHook callback with null function pointer");
+		SDL_Log(
+			CODE_ERROR "ERROR: Tried to hook UpdateHook callback with null "
+					   "function pointer" CODE_END
+		);
 		return ERR_PASS;
 	}
 
@@ -427,8 +507,9 @@ Error Eng_hook_update(Method func, void* data) {
 		);
 		if(!tmp) {
 			SDL_Log(
-				"Failed to allocate memory for UpdateHook queue expansion"
-				"from %d to %d",
+				CODE_ERROR "ERROR: Failed to allocate memory for UpdateHook "
+						   "queue expansion"
+						   "from %d to %d" CODE_END,
 				update_callbacks_cap, update_callbacks_cap * 2
 			);
 			return ERR_FATAL;
@@ -448,7 +529,9 @@ void* data: Give GameObject.data pointer of target GameObject
  */
 Error Eng_unhook_update(void* data) {
 	if(!data) {
-		SDL_Log("Tried to unhook null Update callback");
+		SDL_Log(
+			CODE_ERROR "ERROR: Tried to unhook null Update callback" CODE_END
+		);
 		return ERR_PASS;
 	}
 
@@ -468,8 +551,9 @@ Error Eng_unhook_update(void* data) {
 
 				if(!tmp) {
 					SDL_Log(
-						"Failed to allocate memory for UpdateHook queue "
-						"shrinking from %d to %d",
+						CODE_ERROR
+						"ERROR: Failed to allocate memory for UpdateHook queue "
+						"shrinking from %d to %d" CODE_END,
 						update_callbacks_cap, update_callbacks_cap >> 1
 					);
 					return ERR_FATAL;
@@ -481,7 +565,11 @@ Error Eng_unhook_update(void* data) {
 			return ERR_PASS;
 		}
 	}
-	SDL_Log("Tried to unhook invalid Update callback: %p", data);
+	SDL_Log(
+		CODE_ERROR
+		"ERROR: Tried to unhook invalid Update callback: %p" CODE_END,
+		data
+	);
 	return ERR_PASS;
 }
 

@@ -35,7 +35,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	(void) argc;
 	(void) argv;
 
-	if(Eng_Init() == SDL_APP_FAILURE) return SDL_APP_FAILURE;
+	if(Eng_init() == SDL_APP_FAILURE) return SDL_APP_FAILURE;
 
 	GameObject_player_create();
 	GameObject_fps_display_create((SDL_FPoint) {20.0f, 20.0f});
@@ -45,13 +45,13 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 
 SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 	(void) appstate;
-	return Eng_TickInput(event);
+	return Eng_tick_input(event);
 }
 
 SDL_AppResult SDL_AppIterate(void* appstate) {
 	(void) appstate;
 
-	if(Eng_TickOnce() == ERR_FATAL) return SDL_APP_FAILURE;
+	if(Eng_tick_once() == ERR_FATAL) return SDL_APP_FAILURE;
 
 	return SDL_APP_CONTINUE;
 }

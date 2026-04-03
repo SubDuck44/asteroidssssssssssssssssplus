@@ -64,9 +64,10 @@ typedef bool Error;
 #include "res.c"
 
 // Control flow
-SDL_AppResult Eng_Init(void);
-SDL_AppResult Eng_TickInput(SDL_Event* event);
-Error         Eng_TickOnce(void);
+SDL_AppResult Eng_init(void);
+void          Eng_exit(void);
+SDL_AppResult Eng_tick_input(SDL_Event* event);
+Error         Eng_tick_once(void);
 
 // Camera/transform system
 typedef struct {
@@ -393,7 +394,7 @@ SDL_AppResult Eng_tick_input(SDL_Event* event) {
 /*
 Process all callbacks in the update_callbacks queue
 */
-Error Eng_TickOnce(void) {
+Error Eng_tick_once(void) {
 	// Start frame timer
 	const uint64_t frametime_start = SDL_GetTicksNS();
 

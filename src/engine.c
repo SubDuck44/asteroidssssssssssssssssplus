@@ -145,7 +145,10 @@ extern TTF_Font*       Eng_font;
 extern TTF_TextEngine* Eng_text_engine;
 extern const char      EMB_IOSEVKA_FONT[];
 
-#include "main.c"
+extern SDL_Window*   window;
+extern SDL_Renderer* renderer;
+
+extern Camera Eng_std_camera;
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
@@ -164,6 +167,9 @@ uint32_t        Eng_current_fps = 1;
 static uint16_t fontsize;
 TTF_Font*       Eng_font;
 TTF_TextEngine* Eng_text_engine;
+
+SDL_Window*   window;
+SDL_Renderer* renderer;
 
 Camera Eng_std_camera;
 

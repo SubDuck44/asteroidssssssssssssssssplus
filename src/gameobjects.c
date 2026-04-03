@@ -1,7 +1,6 @@
 #pragma once
 
 #include "engine.c"
-#include "main.c"
 
 #include <SDL3/SDL.h>
 

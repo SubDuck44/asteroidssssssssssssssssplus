@@ -5,30 +5,10 @@
 #include "engine.c"
 #include "gameobjects.c"
 
-#define DEF_FPS 60
-#define DEF_FPS_TEXTBUFFER_SIZE 64
-#define DEF_FONTSIZE 12.0f
-
-#define SDL_Err(fmt, ...)                                                      \
-	do {                                                                       \
-		SDL_LogError(                                                          \
-			SDL_LOG_CATEGORY_APPLICATION, fmt ": %s",                          \
-			__VA_ARGS__ __VA_OPT__(, ) SDL_GetError()                          \
-		);                                                                     \
-	} while(0)
-
-extern struct GameObject_Player player;
-extern SDL_Window*              window;
-extern SDL_Renderer*            renderer;
-
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
 #define SDL_MAIN_USE_CALLBACKS
 #include <SDL3/SDL_main.h> // Dont move this or DIE
-
-struct GameObject_Player player = {0};
-SDL_Window*              window;
-SDL_Renderer*            renderer;
 
 SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	(void) appstate;

@@ -5,43 +5,41 @@ but is not intended to be viewed by a wide audience. If a stranger does somehow 
 to look at the source code. No guarantee it will be good. If all goes well, this will a nostalgia project in a few years.
 
 * Project structure
-** Near roadmap
-- Setup build process with meson [Complete!]
-- Get a player on the screen with SDL [Complete!]
-- Input handling for player movement (simple movement controller) [Complete!]
-- Basic debug UI w/ text [Complete!]
-- Vector2 based movement controller [Complete!]
-- Persistent key input handling [Complete!]
-- Vector drawing (prograde, lateral guides) [Complete!]
-- Lateral-Rotational movement controller (angular velocity) [Complete!]
-- Hold Mouse 1 for nose follow [Complete!]
-- FPS regulation (without VSync) [Complete!]
-- Camera system (with layers) [Pending…]
-- Groundwork for persistent data serialization [Pending…]
-- Parallax backgrounds (stars, rocks) [Pending…]
+** Finished
+- Setup build process with meson
+- Get a player on the screen with SDL
+- Input handling for player movement (simple movement controller)
+- Basic debug UI w/ text
+- Vector2 based movement controller
+- Persistent key input handling
+- Vector drawing (prograde, lateral guides)
+- Lateral-Rotational movement controller (angular velocity)
+- Hold Mouse 1 for nose follow
+- FPS regulation (without VSync)
+- Utterly /obliterate/ floating point worries
+- Camera (zoom, pan)
+** In Progress
+- Slight inaccuracies in thruster output
+- Spawning and simulating asteroids
 ** Far roadmap
-*** Player movement upgrade
-- Thruster sprites [Pending…]
-- Slight inaccuracies in thruster output [Pending…]
 *** Engine
-- Camera (zoom, pan, shake) [Pending…]
-- Utterly /obliterate/ floating point worries [Pending…]
-- Maybe uhh… ADD ASTEROIDS [Pending…]
-- Spawning and simulating asteroids [Pending…]
-- Loading in chunks [Pending…]
-- Collision in chunks [Pending…]
-- Serializing chunk data to savefiles [Pending…]
-- Multithreading (for independent rendering/physics) [Pending…]
+- Groundwork for persistent data serialization
+- Serializing chunk data to savefiles
+- Loading in chunks
+- Collision in chunks
+- Multithreading (for independent rendering/physics)
+*** Shaders
+- Shader support
+- Parallax backgrounds (stars, rocks)
 *** UI
-- Text drawing w/ custom font [Pending…]
-- Animated panels (curve controllers) [Pending…]
-- (?) Touchscreen support (for alia) [Pending…]
-- (?) Shaders for accelerated graphics [Pending…]
-- In-game debug console [Pending…]
+- Thruster sprites
+- Animated panels (curve controllers)
+- (?) Touchscreen support (for alia)
+- (?) In-game debug console
 *** Audio
-- Basic ambience streaming [Pending…]
-- SFX for common sounds (thrusters, collision, mining) [Pending…]
-- In-game music player with custom music imports [Pending…]
+- Basic ambience streaming
+- SFX for common sounds (thrusters, collision, mining)
+- (?) In-game music player with custom music imports
 
 * Special thanks
 - …to ZHS 0x82AB1AFA45 for helping me with this project

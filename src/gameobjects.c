@@ -15,7 +15,7 @@ enum GameObject_Types : uint32_t {
 // Declarations
 struct GameObject_Player {
 	bool       alive;
-	SDL_FPoint pos;
+	Position   pos;
 	double     rot;
 	SDL_FPoint vel;
 	float      ang_vel;
@@ -78,19 +78,24 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 			self->vel
 		);
 	if(Eng_get_key_pressed(KEY_MOUSE_LEFT)) {
-		self->rot = Eng_pointf_bearing(self->pos, Eng_mouse_pos);
+		self->rot = Eng_pointf_bearing(
+			Eng_get_screen_pos(self->pos, &Eng_std_camera), Eng_mouse_pos
+		);
 	}
 
-	self->pos = Eng_pointf_add(self->pos, self->vel);
+	self->pos = Eng_position_add_pointf(self->pos, self->vel);
 	self->rot = WRAP_COMPASS((int) (self->rot + self->ang_vel));
 
-	// TODO Switch these to modfs (or just if it)
-	self->pos.x = PROPER_MOD((int) self->pos.x, Eng_screensize.x);
-	self->pos.y = PROPER_MOD((int) self->pos.y, Eng_screensize.y);
-
-	SDL_FRect  player_rect = {self->pos.x, self->pos.y, 50, 50};
-	SDL_FPoint player_off  = {25, 25};
-	SDL_FPoint player_ctr  = Eng_pointf_add(self->pos, player_off);
+	SDL_FPoint player_screen_pos =
+		Eng_get_screen_pos(self->pos, &Eng_std_camera);
+	SDL_FRect player_rect = Eng_frect_scale(
+		(SDL_FRect) {player_screen_pos.x, player_screen_pos.y, 50, 50},
+		Eng_std_camera.zoom
+	);
+	SDL_FPoint player_off = {25, 25};
+	SDL_FPoint player_ctr = Eng_pointf_add(
+		Eng_get_screen_pos(self->pos, &Eng_std_camera), player_off
+	);
 
 	// Draw player
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);

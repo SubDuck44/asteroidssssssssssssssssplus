@@ -44,6 +44,11 @@
 #define DEFAULT_SCREENWIDTH 1280
 #define DEFAULT_SCREENHEIGHT 720
 #define DEFAULT_VSYNC_ENABLE
+#define DEFAULT_MAJORGRID_CELLSIZE 1024
+#define DEFAULT_MINORGRID_FIXED_POINT 4194304
+#define DEFAULT_FPS 60
+#define DEFAULT_FPS_TEXTBUFFER_SIZE 64
+#define DEFAULT_FONTSIZE 12.0f
 
 typedef bool Error;
 
@@ -62,6 +67,24 @@ typedef bool Error;
 SDL_AppResult Eng_Init(void);
 SDL_AppResult Eng_TickInput(SDL_Event* event);
 Error         Eng_TickOnce(void);
+
+// Camera/transform system
+typedef struct {
+	int32_t x;
+	int32_t y;
+	int32_t x_maj;
+	int32_t y_maj;
+} Position;
+typedef struct {
+	Position target;
+	float    zoom;
+} Camera;
+// -----------------------------------------------------------------------------
+SDL_FPoint Eng_get_screen_pos(Position target, Camera* cam);
+Position   Eng_get_world_pos(SDL_FPoint target, Camera* cam);
+SDL_FRect  Eng_frect_scale(SDL_FRect target, float scale);
+Position   Eng_position_add(Position a, Position b);
+Position   Eng_position_add_pointf(Position a, SDL_FPoint b);
 
 // GameObject management
 typedef struct {
@@ -96,7 +119,6 @@ float      Eng_pointf_bearing(SDL_FPoint zero, SDL_FPoint tgt);
 double Eng_get_deltatime_factor(void);
 
 // KEY input handling BEGIN
-
 #define KEYS X(W) X(A) X(S) X(D) X(LALT) X(I) X(J) X(K) X(L)
 
 enum Keys : uint32_t {
@@ -112,7 +134,6 @@ enum Keys : uint32_t {
 
 extern bool       Eng_key_cache[KEY_NUM];
 extern SDL_FPoint Eng_mouse_pos;
-
 // KEY input handling END
 
 extern SDL_Point Eng_screensize;
@@ -142,6 +163,8 @@ uint32_t        Eng_current_fps = 1;
 static uint16_t fontsize;
 TTF_Font*       Eng_font;
 TTF_TextEngine* Eng_text_engine;
+
+Camera Eng_std_camera;
 
 const char EMB_IOSEVKA_FONT[] = {
 #embed "../res/Iosevka-Regular.ttf"
@@ -282,6 +305,7 @@ SDL_AppResult Eng_init(void) {
 
 	// Arbitrary initializations
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+	Eng_std_camera = (Camera) {(Position) {0}, 1.0f};
 
 	ASSERT_PREDICATE(
 		!fatal_error, return SDL_APP_FAILURE;
@@ -399,6 +423,79 @@ Error Eng_TickOnce(void) {
 		(((double) (1'000'000'000) / last_frame_time) + Eng_current_fps) / 2;
 
 	return ERR_PASS;
+}
+
+// Camera/transform system =====================================================
+
+/* Converts a given Position to screenspace position in SDL_FPoint format using
+a given camera transform
+Position target: position to convert
+Camera* cam: reference to the camera used */
+SDL_FPoint Eng_get_screen_pos(Position target, Camera* cam) {
+	Position diff =
+		(Position) {target.x - cam->target.x, target.y - cam->target.y,
+	                target.x_maj - cam->target.x_maj,
+	                target.y_maj - cam->target.y_maj};
+	int32_t screen_x = (diff.x / DEFAULT_MINORGRID_FIXED_POINT) +
+	                   (diff.x_maj * DEFAULT_MAJORGRID_CELLSIZE);
+	int32_t screen_y = (diff.y / DEFAULT_MINORGRID_FIXED_POINT) +
+	                   (diff.y_maj * DEFAULT_MAJORGRID_CELLSIZE);
+	return (SDL_FPoint) {screen_x + (int32_t) (DEFAULT_MAJORGRID_CELLSIZE >> 1),
+	                     screen_y +
+	                         (int32_t) (DEFAULT_MAJORGRID_CELLSIZE >> 1)};
+}
+
+/* Converts a given screenspace position in SDL_FPoint format to a position
+using a given camera transform
+SDL_FPoint target: screenspace position to convert
+Camera* camm: reference to the camera transform used */
+Position Eng_get_world_pos(SDL_FPoint target, Camera* cam) {
+	int32_t  maj_x = (int32_t) (target.x / DEFAULT_MAJORGRID_CELLSIZE);
+	int32_t  maj_y = (int32_t) (target.y / DEFAULT_MAJORGRID_CELLSIZE);
+	uint32_t min_x =
+		(uint32_t) (((target.x - (maj_x * DEFAULT_MAJORGRID_CELLSIZE)) *
+	                 DEFAULT_MINORGRID_FIXED_POINT) -
+	                cam->target.x);
+	uint32_t min_y =
+		(uint32_t) (((target.y - (maj_y * DEFAULT_MAJORGRID_CELLSIZE)) *
+	                 DEFAULT_MINORGRID_FIXED_POINT) -
+	                cam->target.y);
+	maj_x -= cam->target.x_maj;
+	maj_y -= cam->target.y_maj;
+	return (Position) {min_x, min_y, maj_x, maj_y};
+}
+/* Scale the width and height components of a given SDL_FRect to a given factor
+(for example camera zoom)
+SDL_FRect target: rectangle to scale float scale:
+factor to multiply by*/
+SDL_FRect Eng_frect_scale(SDL_FRect target, float scale) {
+	return (SDL_FRect) {target.x, target.y, target.w * scale, target.h * scale};
+}
+
+/* Adds two positions ontop of another, handling overflow from minor to major
+ * grid.
+ Position a: first summand
+ Position b: second summand */
+Position Eng_position_add(Position a, Position b) {
+	int32_t maj_x = a.x_maj + b.x_maj;
+	int32_t maj_y = a.y_maj + b.y_maj;
+	// TODO MAKE THIS BRANCHLESS PLEASSEEEEE
+	if(((int64_t) a.x + (int64_t) b.x) < INT32_MIN) maj_x--;
+	if(((int64_t) a.y + (int64_t) b.y) < INT32_MIN) maj_y--;
+	if(((int64_t) a.x + (int64_t) b.x) > INT32_MAX) maj_x++;
+	if(((int64_t) a.y + (int64_t) b.y) > INT32_MAX) maj_y++;
+	uint32_t x = a.x + b.x;
+	uint32_t y = a.y + b.y;
+	return (Position) {x, y, maj_x, maj_y};
+}
+
+/* Adds an SDL_FPoint ontop of a position. Note that this function does NOT do
+screenspace conversion on the SDL_FPoint.
+Position a: position to add ontop of
+SDL_FPoint b: vector2 to add ontop of the position */
+Position Eng_position_add_pointf(Position a, SDL_FPoint b) {
+	Position b_pos = Eng_get_world_pos(b, &Eng_std_camera);
+	return Eng_position_add(a, b_pos);
 }
 
 // GameObject management =======================================================

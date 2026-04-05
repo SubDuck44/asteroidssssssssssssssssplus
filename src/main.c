@@ -19,16 +19,18 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 
 	ASSERT_PREDICATE(
 		GameObject_player_create(), return SDL_APP_FAILURE;
-		, CODE_SUCCESS "INFO: Successfully created GameObject" CODE_END,
-		CODE_ERROR "FATAL: Failed to create GameObject" CODE_END
+		, CODE_SUCCESS GAMEOBJECT_CREATE_SUCCESS CODE_END,
+		CODE_ERROR GAMEOBJECT_CREATE_FAILURE CODE_END
 	);
 
 	ASSERT_PREDICATE(GameObject_fps_display_create((SDL_FPoint) {20.0f, 20.0f}),
 	                 return SDL_APP_FAILURE;
-	                 ,
-	                 CODE_SUCCESS
-	                 "INFO: Successfully created GameObject" CODE_END,
-	                 CODE_ERROR "FATAL: Failed to create GameObject" CODE_END);
+	                 , CODE_SUCCESS GAMEOBJECT_CREATE_SUCCESS CODE_END,
+	                 CODE_ERROR GAMEOBJECT_CREATE_FAILURE CODE_END);
+
+	ASSERT_PREDICATE(GameObject_asteroid_create(NULL), return SDL_APP_FAILURE;
+	                 , CODE_SUCCESS GAMEOBJECT_CREATE_SUCCESS CODE_END,
+	                 CODE_ERROR GAMEOBJECT_CREATE_FAILURE CODE_END);
 
 	return SDL_APP_CONTINUE;
 }

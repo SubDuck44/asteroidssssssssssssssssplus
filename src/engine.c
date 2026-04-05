@@ -39,7 +39,8 @@
 			__VA_ARGS__ __VA_OPT__(, ) SDL_GetError()                          \
 		);                                                                     \
 	} while(0)
-
+#define GAMEOBJECT_CREATE_SUCCESS "INFO: Successfully created GameObject"
+#define GAMEOBJECT_CREATE_FAILURE "FATAL: Failed to create GameObject"
 #define RAD2DEG (180 / M_PI)
 #define DEG2RAD (1 / RAD2DEG)
 #define WRAP_COMPASS(x) PROPER_MOD(x, 360)
@@ -200,9 +201,11 @@ SDL_FPoint Eng_mouse_pos          = {0};
 
 SDL_Point Eng_screensize = {DEFAULT_SCREENWIDTH, DEFAULT_SCREENHEIGHT};
 
-// Control flow ================================================================
+// Control flow
+// ================================================================
 
-/* Initialize the engine, required for… well… everything in it to work */
+/* Initialize the engine, required for… well… everything in
+ * it to work */
 SDL_AppResult Eng_init(void) {
 	SDL_Log("INFO: Initializing " APPLICATION_TITLE "…");
 	bool fatal_error = false;
@@ -213,10 +216,10 @@ SDL_AppResult Eng_init(void) {
 	         calloc(DEFAULT_GAMEOBJECT_QUEUE_CAP, sizeof(game_objects[0]))),
 		fatal_error = true;
 		,
-		CODE_SUCCESS
-		"INFO: Successfully allocated memory for GameObject queue" CODE_END,
-		CODE_ERROR
-		"FATAL: Failed to allocate memory for GameObject queue" CODE_END
+		CODE_SUCCESS "INFO: Successfully allocated memory "
+					 "for GameObject queue" CODE_END,
+		CODE_ERROR "FATAL: Failed to allocate memory "
+				   "for GameObject queue" CODE_END
 	);
 
 	// Try allocate memory for UpdateHook queue
@@ -226,10 +229,10 @@ SDL_AppResult Eng_init(void) {
 		),
 		fatal_error = true;
 		,
-		CODE_SUCCESS
-		"INFO: Successfully allocated memory for UpdateHook queue" CODE_END,
-		CODE_ERROR
-		"FATAL: Failed to allocate memory for UpdateHook queue" CODE_END
+		CODE_SUCCESS "INFO: Successfully allocated memory "
+					 "for UpdateHook queue" CODE_END,
+		CODE_ERROR "FATAL: Failed to allocate memory for "
+				   "UpdateHook queue" CODE_END
 	);
 
 	// Try setup main SDL lib
@@ -240,15 +243,16 @@ SDL_AppResult Eng_init(void) {
 	                     CODE_ERROR "FATAL: Failed to initialize SDL" CODE_END);
 
 	// Try setup window
-	ASSERT_PREDICATE_SDL(
-		SDL_CreateWindowAndRenderer(
-			"Asteroidssssssssssssssss+", 1280, 720, 0, &window, &renderer
-		),
-		fatal_error = true;
-		,
-		CODE_SUCCESS "INFO: Successfully initialized window/renderer" CODE_END,
-		CODE_ERROR "FATAL: Failed to initialize window/renderer" CODE_END
-	);
+	ASSERT_PREDICATE_SDL(SDL_CreateWindowAndRenderer(
+							 "Asteroidssssssssssssssss+", 1280, 720, 0, &window,
+							 &renderer
+						 ),
+	                     fatal_error = true;
+	                     ,
+	                     CODE_SUCCESS "INFO: Successfully initialized "
+	                                  "window/renderer" CODE_END,
+	                     CODE_ERROR "FATAL: Failed to initialize "
+	                                "window/renderer" CODE_END);
 
 	// Disable AA
 	SDL_SetDefaultTextureScaleMode(renderer, SDL_SCALEMODE_PIXELART);
@@ -276,7 +280,9 @@ SDL_AppResult Eng_init(void) {
 	ASSERT_PREDICATE(
 		Eng_text_engine = TTF_CreateRendererTextEngine(renderer),
 		fatal_error     = true;
-		, CODE_SUCCESS "INFO: Successfully initialized font engine" CODE_END,
+		,
+		CODE_SUCCESS "INFO: Successfully initialized font "
+					 "engine" CODE_END,
 		CODE_ERROR "FATAL: Failed to initialize font engine" CODE_END
 	);
 
@@ -300,7 +306,8 @@ SDL_AppResult Eng_init(void) {
 		if(!surface) {
 #ifndef NDEBUG
 			SDL_Err(
-				CODE_ERROR "FATAL: Failed to load texture %d into RAM" CODE_END,
+				CODE_ERROR "FATAL: Failed to load texture "
+						   "%d into RAM" CODE_END,
 				i
 			);
 			fatal_error    = true;
@@ -311,8 +318,8 @@ SDL_AppResult Eng_init(void) {
 #ifndef NDEBUG
 			if(!TEXTURES[i]->tex) {
 				SDL_Err(
-					CODE_ERROR
-					"FATAL: Failed to load texture %d into VRAM" CODE_END,
+					CODE_ERROR "FATAL: Failed to load texture %d "
+							   "into VRAM" CODE_END,
 					i
 				);
 				fatal_error    = true;
@@ -325,7 +332,8 @@ SDL_AppResult Eng_init(void) {
 #ifndef NDEBUG
 	if(!texture_failed)
 		SDL_Log(
-			CODE_SUCCESS "INFO: Successfully initialized %d textures" CODE_END,
+			CODE_SUCCESS "INFO: Successfully initialized "
+						 "%d textures" CODE_END,
 			TEXTURES_COUNT
 		);
 #endif
@@ -334,12 +342,12 @@ SDL_AppResult Eng_init(void) {
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 	Eng_std_camera = (Camera) {(Position) {0}, 1.0f};
 
-	ASSERT_PREDICATE(
-		!fatal_error, return SDL_APP_FAILURE;
-		, CODE_SUCCESS "INFO: Green across the board, launching…" CODE_END,
-		CODE_ERROR
-		"FATAL: Caught one or more fatal exceptions, aborting…" CODE_END
-	);
+	ASSERT_PREDICATE(!fatal_error, return SDL_APP_FAILURE;
+	                 ,
+	                 CODE_SUCCESS "INFO: Green across the board, "
+	                              "launching…" CODE_END,
+	                 CODE_ERROR "FATAL: Caught one or more fatal "
+	                            "exceptions, aborting…" CODE_END);
 	SDL_Log("INFO: Welcome to " APPLICATION_TITLE "!");
 	return SDL_APP_CONTINUE;
 }
@@ -350,9 +358,9 @@ void Eng_exit(void) {
 }
 
 /*
-Run all input capturing events, return value MUST be returned from
-SDL_AppEvent()
-SDL_Event* event: Pass SDL_Event* from SDL_AppEvent()
+Run all input capturing events, return value MUST be
+returned from SDL_AppEvent() SDL_Event* event: Pass
+SDL_Event* from SDL_AppEvent()
  */
 SDL_AppResult Eng_tick_input(SDL_Event* event) {
 	switch(event->type) {
@@ -409,8 +417,12 @@ SDL_AppResult Eng_tick_input(SDL_Event* event) {
 		break;
 
 	case SDL_EVENT_QUIT:
-		// If system sends quit event (e.g. closing the window from the OS)
-		SDL_Log("INFO: Received termination request from system, exiting…");
+		// If system sends quit event (e.g. closing the
+		// window from the OS)
+		SDL_Log(
+			"INFO: Received termination request from "
+			"system, exiting…"
+		);
 		return SDL_APP_SUCCESS;
 	}
 
@@ -452,12 +464,13 @@ Error Eng_tick_once(void) {
 	return ERR_PASS;
 }
 
-// Camera/transform system =====================================================
+// Camera/transform system
+// =====================================================
 
-/* Converts a given Position to screenspace position in SDL_FPoint format using
-a given camera transform
-Position target: position to convert
-Camera* cam: reference to the camera used */
+/* Converts a given Position to screenspace position in
+SDL_FPoint format using a given camera transform Position
+target: position to convert Camera* cam: reference to the
+camera used */
 SDL_FPoint Eng_get_screen_pos(Position target, Camera* cam) {
 	Position diff =
 		(Position) {target.x - cam->target.x, target.y - cam->target.y,
@@ -482,8 +495,8 @@ SDL_FPoint Eng_position_to_pointf(Position target) {
 	return (SDL_FPoint) {screen_x, screen_y};
 }
 
-/* Converts a given screenspace position in SDL_FPoint format to a position
-using a given camera transform
+/* Converts a given screenspace position in SDL_FPoint
+format to a position using a given camera transform
 SDL_FPoint target: screenspace position to convert
 Camera* camm: reference to the camera transform used */
 Position Eng_get_world_pos(SDL_FPoint target, Camera* cam) {
@@ -526,15 +539,16 @@ Position Eng_pointf_to_position(SDL_FPoint target) {
 
 	return (Position) {x, y, x_maj, y_maj};
 }
-/* Scale the width and height components of a given SDL_FRect to a given factor
-(for example camera zoom)
+/* Scale the width and height components of a given
+SDL_FRect to a given factor (for example camera zoom)
 SDL_FRect target: rectangle to scale float scale:
 factor to multiply by*/
 SDL_FRect Eng_frect_scale(SDL_FRect target, float scale) {
 	return (SDL_FRect) {target.x, target.y, target.w * scale, target.h * scale};
 }
 
-/* Adds two positions ontop of another, handling overflow from minor to major
+/* Adds two positions ontop of another, handling overflow
+ from minor to major
  * grid.
  Position a: first summand
  Position b: second summand */
@@ -551,10 +565,10 @@ Position Eng_position_add(Position a, Position b) {
 	return (Position) {x, y, maj_x, maj_y};
 }
 
-/* Adds an SDL_FPoint ontop of a position. Note that this function does NOT do
-screenspace conversion on the SDL_FPoint.
-Position a: position to add ontop of
-SDL_FPoint b: vector2 to add ontop of the position */
+/* Adds an SDL_FPoint ontop of a position. Note that this
+function does NOT do screenspace conversion on the
+SDL_FPoint. Position a: position to add ontop of SDL_FPoint
+b: vector2 to add ontop of the position */
 Position Eng_position_add_pointf(Position a, SDL_FPoint b) {
 	Position b_pos = Eng_pointf_to_position(
 		Eng_pointf_add_value(b, (float) (DEFAULT_MAJORGRID_CELLSIZE >> 1))
@@ -576,20 +590,23 @@ float Eng_get_distance(Position from, Position to) {
 	));
 }
 
-// GameObject management =======================================================
+// GameObject management
+// =======================================================
 
 /*
 Register and allocate a GameObject
-void* src:          Give desired default values for data in struct of given type
-size_t data_size:   Give size of reserved space for GameObject
-uint32_t type:      Give type of GameObject for recognition
+void* src:          Give desired default values for data in
+struct of given type size_t data_size:   Give size of
+reserved space for GameObject uint32_t type:      Give type
+of GameObject for recognition
  */
 Error Eng_create_object(
 	void* src, void** new_ref, size_t data_size, uint32_t type
 ) {
 	if(!src) {
 		SDL_Log(
-			CODE_ERROR "ERROR: Tried to create GameObject of type %d with null "
+			CODE_ERROR "ERROR: Tried to create GameObject "
+					   "of type %d with null "
 					   "data: %p" CODE_END,
 			type, src
 		);
@@ -602,7 +619,8 @@ Error Eng_create_object(
 		);
 		if(!tmp) {
 			SDL_Log(
-				CODE_ERROR "ERROR: Failed to allocate memory for GameObject "
+				CODE_ERROR "ERROR: Failed to allocate "
+						   "memory for GameObject "
 						   "queue expansion from "
 						   "%d to %d" CODE_END,
 				game_objects_cap, game_objects_cap * 2
@@ -616,7 +634,8 @@ Error Eng_create_object(
 
 	if(!data) {
 		SDL_Log(
-			CODE_ERROR "ERROR: Failed to allocate memory for GameObject of "
+			CODE_ERROR "ERROR: Failed to allocate memory "
+					   "for GameObject of "
 					   "type %d" CODE_END,
 			type
 		);
@@ -632,14 +651,15 @@ Error Eng_create_object(
 
 /*
 Unregister and deallocate a GameObject
-uint32_t target: Give uint32 to index target GameObject in game_objects array
+uint32_t target: Give uint32 to index target GameObject in
+game_objects array
  */
 Error Eng_destroy_object(uint32_t target) {
 	if(target >= game_objects_len) {
 		SDL_Log(
-			CODE_ERROR
-			"ERROR: Tried to destroy invalid GameObject %d: Index out of "
-			"range" CODE_END,
+			CODE_ERROR "ERROR: Tried to destroy invalid "
+					   "GameObject %d: Index out of "
+					   "range" CODE_END,
 			target
 		);
 		return ERR_PASS;
@@ -647,8 +667,8 @@ Error Eng_destroy_object(uint32_t target) {
 
 	if(!game_objects[target].data) {
 		SDL_Log(
-			CODE_ERROR
-			"ERROR. Tried to destroy GameObject %d with null data" CODE_END,
+			CODE_ERROR "ERROR. Tried to destroy GameObject %d with "
+					   "null data" CODE_END,
 			target
 		);
 		return ERR_PASS;
@@ -664,13 +684,15 @@ Error Eng_destroy_object(uint32_t target) {
 
 /*
 Register a callback to be called at Eng_TickOnce()
-Method func: Give callback function pointer according to Method signature
-void* data:  Give optional varargs as argument to callback
+Method func: Give callback function pointer according to
+Method signature void* data:  Give optional varargs as
+argument to callback
 */
 Error Eng_hook_update(Method func, void* data) {
 	if(!func) {
 		SDL_Log(
-			CODE_ERROR "ERROR: Tried to hook UpdateHook callback with null "
+			CODE_ERROR "ERROR: Tried to hook UpdateHook "
+					   "callback with null "
 					   "function pointer" CODE_END
 		);
 		return ERR_PASS;
@@ -682,7 +704,8 @@ Error Eng_hook_update(Method func, void* data) {
 		);
 		if(!tmp) {
 			SDL_Log(
-				CODE_ERROR "ERROR: Failed to allocate memory for UpdateHook "
+				CODE_ERROR "ERROR: Failed to allocate "
+						   "memory for UpdateHook "
 						   "queue expansion"
 						   "from %d to %d" CODE_END,
 				update_callbacks_cap, update_callbacks_cap * 2
@@ -699,13 +722,15 @@ Error Eng_hook_update(Method func, void* data) {
 }
 
 /*
-Unregister a callback, so it is no longer called on Eng_TickOnce()
-void* data: Give GameObject.data pointer of target GameObject
+Unregister a callback, so it is no longer called on
+Eng_TickOnce() void* data: Give GameObject.data pointer of
+target GameObject
  */
 Error Eng_unhook_update(void* data) {
 	if(!data) {
 		SDL_Log(
-			CODE_ERROR "ERROR: Tried to unhook null Update callback" CODE_END
+			CODE_ERROR "ERROR: Tried to unhook null "
+					   "Update callback" CODE_END
 		);
 		return ERR_PASS;
 	}
@@ -726,9 +751,9 @@ Error Eng_unhook_update(void* data) {
 
 				if(!tmp) {
 					SDL_Log(
-						CODE_ERROR
-						"ERROR: Failed to allocate memory for UpdateHook queue "
-						"shrinking from %d to %d" CODE_END,
+						CODE_ERROR "ERROR: Failed to allocate memory "
+								   "for UpdateHook queue "
+								   "shrinking from %d to %d" CODE_END,
 						update_callbacks_cap, update_callbacks_cap >> 1
 					);
 					return ERR_FATAL;
@@ -741,14 +766,15 @@ Error Eng_unhook_update(void* data) {
 		}
 	}
 	SDL_Log(
-		CODE_ERROR
-		"ERROR: Tried to unhook invalid Update callback: %p" CODE_END,
+		CODE_ERROR "ERROR: Tried to unhook invalid Update "
+				   "callback: %p" CODE_END,
 		data
 	);
 	return ERR_PASS;
 }
 
-// Vector math =================================================================
+// Vector math
+// =================================================================
 
 /* Add the components of two vector2s together
    SDL_FPoint a: First summand
@@ -769,8 +795,8 @@ SDL_FPoint Eng_pointf_subtract(SDL_FPoint minuend, SDL_FPoint subtrahend) {
 	return Eng_pointf_add(minuend, Eng_pointf_invert(subtrahend));
 }
 
-/* Rotates a vector around its origin point by a given amount of degrees
- * clockwise with 0° at -y (North)
+/* Rotates a vector around its origin point by a given
+ * amount of degrees clockwise with 0° at -y (North)
  * SDL_FPoint a: target vector2
  * float deg: angle to rotate by
  */
@@ -780,8 +806,8 @@ SDL_FPoint Eng_pointf_rotate(SDL_FPoint a, float deg) {
 	return (SDL_FPoint) {x, y};
 }
 
-/* Set the lengths of a vector2 to 1 while preserving the rotation
- * SDL_FPoint a: target vector2
+/* Set the lengths of a vector2 to 1 while preserving the
+ * rotation SDL_FPoint a: target vector2
  */
 SDL_FPoint Eng_pointf_normalize(SDL_FPoint a) {
 	const float length = sqrt((a.x * a.x) + (a.y * a.y));
@@ -791,9 +817,9 @@ SDL_FPoint Eng_pointf_normalize(SDL_FPoint a) {
 	return (SDL_FPoint) {x, y};
 }
 
-/* Multiply the components of a vector2 by a given scale multiplier
- * SDL_FPoint a: target Vector2
- * double scale: multiplier */
+/* Multiply the components of a vector2 by a given scale
+ * multiplier SDL_FPoint a: target Vector2 double scale:
+ * multiplier */
 SDL_FPoint Eng_pointf_scale(SDL_FPoint a, double scale) {
 	if(scale == SDL_FLT_EPSILON || Eng_pointf_length(a) <= SDL_FLT_EPSILON)
 		return a;
@@ -802,9 +828,10 @@ SDL_FPoint Eng_pointf_scale(SDL_FPoint a, double scale) {
 	return (SDL_FPoint) {x, y};
 }
 
-/* Generate a vector2 with a given length or rotation, shorthand for
- * pointf_scale(pointf_rotate(vec, rot)) float magnitude: the length of the
- * Vector float rotation: the rotation in degrees, running clockwise and
+/* Generate a vector2 with a given length or rotation,
+ * shorthand for pointf_scale(pointf_rotate(vec, rot))
+ * float magnitude: the length of the Vector float
+ * rotation: the rotation in degrees, running clockwise and
  * centered at -y (North) */
 SDL_FPoint Eng_pointf_force(float magnitude, float rotation) {
 	SDL_FPoint vec = (SDL_FPoint) {0.0f, -1.0};
@@ -821,10 +848,10 @@ float Eng_pointf_length(SDL_FPoint a) {
 	return length;
 }
 
-/* Get the direction to a certain vector2 from another vector2 on the compass
- * scale (360°, 0° at -y)
- * SDL_FPoint zero: The reference point, where the
- * bearing line is drawn from SDL_FPoint tgt: The target point, where the
+/* Get the direction to a certain vector2 from another
+ * vector2 on the compass scale (360°, 0° at -y) SDL_FPoint
+ * zero: The reference point, where the bearing line is
+ * drawn from SDL_FPoint tgt: The target point, where the
  * bearing line will be drawn two */
 float Eng_pointf_bearing(SDL_FPoint zero, SDL_FPoint tgt) {
 	float angle = atan2(tgt.x - zero.x, zero.y - tgt.y) * RAD2DEG;
@@ -832,11 +859,12 @@ float Eng_pointf_bearing(SDL_FPoint zero, SDL_FPoint tgt) {
 	return angle;
 }
 
-/* Returns the factor to multiply a time-based value by in order to compensate
- * for frame disparities. For example, if the value is 1.1, the previous frame
- * was finished in 110% of the time it should have. Multiply this value by the
- * animation speed, for example, and the visual movement will stay uniform
- * across framerates. */
+/* Returns the factor to multiply a time-based value by in
+ * order to compensate for frame disparities. For example,
+ * if the value is 1.1, the previous frame was finished in
+ * 110% of the time it should have. Multiply this value by
+ * the animation speed, for example, and the visual
+ * movement will stay uniform across framerates. */
 double Eng_get_deltatime_factor(void) {
 	return ((double) (1'000'000'000) / Eng_desired_fps) / last_frame_time;
 }

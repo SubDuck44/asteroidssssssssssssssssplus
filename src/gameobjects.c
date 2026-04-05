@@ -26,7 +26,7 @@ Error GameObject_player_update(void* data, uint32_t index_of_self);
 Error GameObject_player_create(void);
 
 struct GameObject_Asteroid {
-	SDL_FPoint pos;
+	Position   pos;
 	float      rot;
 	SDL_FPoint vel;
 	double     ang_vel;
@@ -92,9 +92,7 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 		Eng_std_camera.zoom
 	);
 	SDL_FPoint player_off = {25, 25};
-	SDL_FPoint player_ctr = Eng_pointf_add(
-		Eng_get_screen_pos(self->pos, &Eng_std_camera), player_off
-	);
+	SDL_FPoint player_ctr = Eng_pointf_add(player_screen_pos, player_off);
 
 	// Draw player
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
@@ -170,6 +168,10 @@ Error GameObject_player_create(void) {
 	);
 	Eng_hook_update(GameObject_player_update, new);
 	return ERR_PASS;
+}
+
+Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
+	;
 }
 
 Error GameObject_fps_display_update(void* data, uint32_t index_of_self) {

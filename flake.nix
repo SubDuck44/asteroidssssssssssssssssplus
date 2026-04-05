@@ -64,6 +64,7 @@
             just
             gdb
             valgrind
+            tokei
           ];
         };
       }

@@ -31,6 +31,8 @@ struct GameObject_Asteroid {
 	SDL_FPoint vel;
 	double     ang_vel;
 };
+Error GameObject_asteroid_create(struct GameObject_Asteroid* override);
+Error GameObject_asteroid_update(void* data, uint32_t index_of_self);
 
 struct GaneObject_FPS_Display {
 	TTF_Text*  display;
@@ -167,11 +169,66 @@ Error GameObject_player_create(void) {
 		&self, (void*) &new, sizeof(struct GameObject_Player), GAMEOBJECT_PLAYER
 	);
 	Eng_hook_update(GameObject_player_update, new);
+
+Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
+	struct GameObject_Asteroid self;
+	if(!override) {
+		float rot = SDL_randf() * 360;
+		self      = (struct GameObject_Asteroid) {
+				 .ang_vel = (SDL_randf() * 6) - 3,
+				 .pos     = (Position) {((SDL_randf() * 1024) - 512) *
+		                                    DEFAULT_MINORGRID_FIXED_POINT,
+		                                ((SDL_randf() * 1024) - 512) *
+		                                    DEFAULT_MINORGRID_FIXED_POINT,
+		                                0, 0},
+				 .rot     = rot,
+				 .vel     = Eng_pointf_force((SDL_randf() * 2) - 1, rot)
+        };
+	}
+
+	struct GameObject_Asteroid* new = NULL;
+	ASSERT_PREDICATE(Eng_create_object(
+						 (override) ? override : &self, (void*) &new,
+						 sizeof(struct GameObject_Asteroid), GAMEOBJECT_ASTEROID
+					 ),
+	                 return ERR_FATAL;
+	                 ,
+	                 CODE_SUCCESS
+	                 "INFO: Successfully created GameObject asteroid" CODE_END,
+	                 CODE_ERROR
+	                 "FATAL: Failed to create GameObject player" CODE_END);
+	ASSERT_PREDICATE(
+		Eng_hook_update(GameObject_asteroid_update, new), return ERR_FATAL;
+		,
+		CODE_SUCCESS "INFO: Successfully hooked update callback for GameObject "
+					 "asteroid" CODE_END,
+		CODE_ERROR
+		"FATAL: Failed to hook update callback for GameObject asteroid" CODE_END
+	);
 	return ERR_PASS;
 }
 
 Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
-	;
+	(void) index_of_self;
+	struct GameObject_Asteroid* self = data;
+
+	// Update
+	double deltatime = Eng_get_deltatime_factor();
+
+	self->pos = Eng_position_add_pointf(
+		self->pos, Eng_pointf_scale(self->vel, deltatime)
+	);
+	self->rot += self->ang_vel * deltatime;
+	SDL_FPoint screen_pos = Eng_get_screen_pos(self->pos, &Eng_std_camera);
+	SDL_FRect  dest_rect  = (SDL_FRect) {screen_pos.x, screen_pos.y, 100, 100};
+	SDL_FPoint center     = {screen_pos.x + 50.0f, screen_pos.y + 50.0f};
+
+	// Draw
+	SDL_RenderTextureRotated(
+		renderer, TEX_ASTEROID.tex, NULL, &dest_rect, self->rot, &center,
+		SDL_FLIP_NONE
+	);
+	return ERR_PASS;
 }
 
 Error GameObject_fps_display_update(void* data, uint32_t index_of_self) {

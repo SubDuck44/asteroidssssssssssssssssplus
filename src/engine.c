@@ -8,6 +8,8 @@
 #define CODE_WARN "[1;33m"
 #define CODE_SUCCESS "[1;32m"
 #define CODE_END "[m"
+
+#ifndef NDEBUG
 #define ASSERT_PREDICATE(predicate, catch, success, error)                     \
 	do {                                                                       \
 		if(!(predicate)) {                                                     \
@@ -26,6 +28,10 @@
 			SDL_Log(success);                                                  \
 		}                                                                      \
 	} while(0)
+#else
+#define ASSERT_PREDICATE(predicate, catch, success, error) predicate
+#define ASSERT_PREDICATE_SDL(predicate, catch, success, error) predicate
+#endif
 #define SDL_Err(fmt, ...)                                                      \
 	do {                                                                       \
 		SDL_LogError(                                                          \
@@ -292,14 +298,17 @@ SDL_AppResult Eng_init(void) {
 			true
 		);
 		if(!surface) {
+#ifndef NDEBUG
 			SDL_Err(
 				CODE_ERROR "FATAL: Failed to load texture %d into RAM" CODE_END,
 				i
 			);
 			fatal_error    = true;
 			texture_failed = true;
+#endif
 		} else {
 			TEXTURES[i]->tex = SDL_CreateTextureFromSurface(renderer, surface);
+#ifndef NDEBUG
 			if(!TEXTURES[i]->tex) {
 				SDL_Err(
 					CODE_ERROR
@@ -309,14 +318,17 @@ SDL_AppResult Eng_init(void) {
 				fatal_error    = true;
 				texture_failed = true;
 			}
+#endif
 			SDL_DestroySurface(surface);
 		}
 	}
+#ifndef NDEBUG
 	if(!texture_failed)
 		SDL_Log(
 			CODE_SUCCESS "INFO: Successfully initialized %d textures" CODE_END,
 			TEXTURES_COUNT
 		);
+#endif
 
 	// Arbitrary initializations
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);

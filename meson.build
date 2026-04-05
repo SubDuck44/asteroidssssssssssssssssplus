@@ -4,6 +4,7 @@ project(
     default_options: {
         'warning_level': '3',
         'c_std': 'c23',
+		'b_ndebug': 'if-release'
     },
 )
 

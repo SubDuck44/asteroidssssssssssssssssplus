@@ -165,10 +165,25 @@ Error GameObject_player_create(void) {
 		.force_rcs_thrusters = 0.1,
 	};
 	struct GameObject_Player* new = NULL;
-	Eng_create_object(
-		&self, (void*) &new, sizeof(struct GameObject_Player), GAMEOBJECT_PLAYER
+	ASSERT_PREDICATE(
+		Eng_create_object(
+			&self, (void*) &new, sizeof(struct GameObject_Player),
+			GAMEOBJECT_PLAYER
+		),
+		return ERR_FATAL;
+		, CODE_SUCCESS "INFO: Successfully created GameObject: player" CODE_END,
+		CODE_ERROR "FATAL: Failed to create GameObject player" CODE_END
 	);
-	Eng_hook_update(GameObject_player_update, new);
+	ASSERT_PREDICATE(
+		Eng_hook_update(GameObject_player_update, new), return ERR_FATAL;
+		,
+		CODE_SUCCESS "INFO: Successfully hooked update callback for GameObject "
+					 "player" CODE_END,
+		CODE_ERROR
+		"FATAL: Failed to hook update callback for GameObject player" CODE_END
+	);
+	return ERR_PASS;
+}
 
 Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
 	struct GameObject_Asteroid self;
@@ -248,14 +263,35 @@ Error GameObject_fps_display_create(SDL_FPoint pos) {
 		.display = nullptr,
 		.pos     = pos,
 	};
-	self.display = TTF_CreateText(Eng_text_engine, Eng_font, "hewo :3", 0);
-	struct GameObject_FPS_Display* new = NULL;
-	if(Eng_create_object(
-		   &self, (void*) &new, sizeof(struct GaneObject_FPS_Display),
-		   GAMEOBJECT_FPS_DISPLAY
-	   ) == ERR_FATAL)
+	ASSERT_PREDICATE_SDL(
+		(self.display =
+	         TTF_CreateText(Eng_text_engine, Eng_font, "hewo :3", 0)),
 		return ERR_FATAL;
-	Eng_hook_update(GameObject_fps_display_update, new);
+		,
+		CODE_SUCCESS "INFO: Successfully created TTF_Text object for "
+					 "GameObject fps_display" CODE_END,
+		CODE_ERROR "FATAL: Failed to create TTF_Text object for GameObject "
+				   "fps_display" CODE_END
+	);
+	struct GameObject_FPS_Display* new = NULL;
+	ASSERT_PREDICATE(
+		Eng_create_object(
+			&self, (void*) &new, sizeof(struct GaneObject_FPS_Display),
+			GAMEOBJECT_FPS_DISPLAY
+		),
+		return ERR_FATAL;
+		,
+		CODE_SUCCESS
+		"INFO: Successfully created GameObject fps_display" CODE_END,
+		CODE_ERROR "FATAL: Failed to create GameObject fps_display" CODE_END
+	);
+	ASSERT_PREDICATE(Eng_hook_update(GameObject_fps_display_update, new),
+	                 return ERR_FATAL;
+	                 ,
+	                 CODE_SUCCESS "INFO: Successfully hooked update callback "
+	                              "for GameObject fps_display" CODE_END,
+	                 CODE_ERROR "FATAL: Failed to hook update callback for "
+	                            "GameObject fps_display" CODE_END);
 	return ERR_PASS;
 }
 

@@ -17,8 +17,18 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 
 	if(Eng_init() == SDL_APP_FAILURE) return SDL_APP_FAILURE;
 
-	GameObject_player_create();
-	GameObject_fps_display_create((SDL_FPoint) {20.0f, 20.0f});
+	ASSERT_PREDICATE(
+		GameObject_player_create(), return SDL_APP_FAILURE;
+		, CODE_SUCCESS "INFO: Successfully created GameObject" CODE_END,
+		CODE_ERROR "FATAL: Failed to create GameObject" CODE_END
+	);
+
+	ASSERT_PREDICATE(GameObject_fps_display_create((SDL_FPoint) {20.0f, 20.0f}),
+	                 return SDL_APP_FAILURE;
+	                 ,
+	                 CODE_SUCCESS
+	                 "INFO: Successfully created GameObject" CODE_END,
+	                 CODE_ERROR "FATAL: Failed to create GameObject" CODE_END);
 
 	return SDL_APP_CONTINUE;
 }

@@ -41,8 +41,6 @@
 	} while(0)
 #define GAMEOBJECT_CREATE_SUCCESS "INFO: Successfully created GameObject"
 #define GAMEOBJECT_CREATE_FAILURE "FATAL: Failed to create GameObject"
-#define RAD2DEG (180 / M_PI)
-#define DEG2RAD (1 / RAD2DEG)
 #define WRAP_COMPASS(x) PROPER_MOD(x, 360)
 #define PROPER_MOD(x, mod) (((x % mod) + mod) % mod)
 
@@ -51,8 +49,6 @@
 #define DEFAULT_SCREENWIDTH 1280
 #define DEFAULT_SCREENHEIGHT 720
 #define DEFAULT_VSYNC_ENABLE
-#define DEFAULT_MAJORGRID_CELLSIZE 1024
-#define DEFAULT_MINORGRID_FIXED_POINT 4194304
 #define DEFAULT_FPS 60
 #define DEFAULT_FPS_TEXTBUFFER_SIZE 64
 #define DEFAULT_FONTSIZE 12.0f
@@ -62,42 +58,19 @@ typedef bool Error;
 #include <SDL3/SDL.h>
 #include <SDL3_gfx/SDL3_gfxPrimitives.h>
 #include <SDL3_ttf/SDL_ttf.h>
-#include <math.h>
 #include <stdlib.h>
 
 #include <endian.h>
 #include <stdio.h>
 
 #include "res.c"
+#include "utils.c"
 
 // Control flow
 SDL_AppResult Eng_init(void);
 void          Eng_exit(void);
 SDL_AppResult Eng_tick_input(SDL_Event* event);
 Error         Eng_tick_once(void);
-
-// Camera/transform system
-typedef struct {
-	int32_t x;
-	int32_t y;
-	int32_t x_maj;
-	int32_t y_maj;
-} Position;
-typedef struct {
-	Position target;
-	float    zoom;
-} Camera;
-// -----------------------------------------------------------------------------
-SDL_FPoint Eng_get_screen_pos(Position target, Camera* cam);
-SDL_FPoint Eng_position_to_pointf(Position target);
-Position   Eng_get_world_pos(SDL_FPoint target, Camera* cam);
-Position   Eng_pointf_to_position(SDL_FPoint target);
-SDL_FRect  Eng_frect_scale(SDL_FRect target, float scale);
-Position   Eng_position_add(Position a, Position b);
-Position   Eng_position_add_pointf(Position a, SDL_FPoint b);
-Position   Eng_position_invert(Position target);
-Position   Eng_position_subtract(Position minuend, Position subtrahend);
-float      Eng_get_distance(Position a, Position b);
 
 // GameObject management
 typedef struct {
@@ -116,19 +89,6 @@ Error Eng_create_object(
 Error Eng_destroy_object(uint32_t target);
 Error Eng_hook_update(Method func, void* data);
 Error Eng_unhook_update(void* data);
-
-// Vector math
-SDL_FPoint Eng_pointf_add(SDL_FPoint a, SDL_FPoint b);
-SDL_FPoint Eng_pointf_add_value(SDL_FPoint a, float b);
-SDL_FPoint Eng_pointf_invert(SDL_FPoint target);
-SDL_FPoint Eng_pointf_subtract(SDL_FPoint minuend, SDL_FPoint subtrahend);
-SDL_FPoint Eng_pointf_rotate(SDL_FPoint a, float deg);
-SDL_FPoint Eng_pointf_normalize(SDL_FPoint a);
-SDL_FPoint Eng_pointf_scale(SDL_FPoint a, double scale);
-SDL_FPoint pointf_angle_to(SDL_FPoint a, SDL_FPoint b);
-SDL_FPoint Eng_pointf_force(float magnitude, float rotation);
-float      Eng_pointf_length(SDL_FPoint a);
-float      Eng_pointf_bearing(SDL_FPoint zero, SDL_FPoint tgt);
 
 // Misc
 
@@ -464,132 +424,6 @@ Error Eng_tick_once(void) {
 	return ERR_PASS;
 }
 
-// Camera/transform system
-// =====================================================
-
-/* Converts a given Position to screenspace position in
-SDL_FPoint format using a given camera transform Position
-target: position to convert Camera* cam: reference to the
-camera used */
-SDL_FPoint Eng_get_screen_pos(Position target, Camera* cam) {
-	Position diff =
-		(Position) {target.x - cam->target.x, target.y - cam->target.y,
-	                target.x_maj - cam->target.x_maj,
-	                target.y_maj - cam->target.y_maj};
-	int32_t screen_x = ((diff.x / DEFAULT_MINORGRID_FIXED_POINT) +
-	                    (DEFAULT_MAJORGRID_CELLSIZE >> 1)) +
-	                   (diff.x_maj * DEFAULT_MAJORGRID_CELLSIZE);
-	int32_t screen_y = ((diff.y / DEFAULT_MINORGRID_FIXED_POINT) +
-	                    (DEFAULT_MAJORGRID_CELLSIZE >> 1)) +
-	                   (diff.y_maj * DEFAULT_MAJORGRID_CELLSIZE);
-	return (SDL_FPoint) {screen_x, screen_y};
-}
-
-SDL_FPoint Eng_position_to_pointf(Position target) {
-	int32_t screen_x = ((target.x / DEFAULT_MINORGRID_FIXED_POINT) +
-	                    (DEFAULT_MAJORGRID_CELLSIZE >> 1)) +
-	                   (target.x_maj * DEFAULT_MAJORGRID_CELLSIZE);
-	int32_t screen_y = ((target.y / DEFAULT_MINORGRID_FIXED_POINT) +
-	                    (DEFAULT_MAJORGRID_CELLSIZE >> 1)) +
-	                   (target.y_maj * DEFAULT_MAJORGRID_CELLSIZE);
-	return (SDL_FPoint) {screen_x, screen_y};
-}
-
-/* Converts a given screenspace position in SDL_FPoint
-format to a position using a given camera transform
-SDL_FPoint target: screenspace position to convert
-Camera* camm: reference to the camera transform used */
-Position Eng_get_world_pos(SDL_FPoint target, Camera* cam) {
-	int32_t x_maj =
-		((int32_t) target.x / DEFAULT_MAJORGRID_CELLSIZE) - (target.x < 0);
-	int32_t y_maj =
-		((int32_t) target.y / DEFAULT_MAJORGRID_CELLSIZE) - (target.y < 0);
-
-	int32_t x = target.x - (x_maj * DEFAULT_MAJORGRID_CELLSIZE);
-	int32_t y = target.y - (y_maj * DEFAULT_MAJORGRID_CELLSIZE);
-
-	x -= DEFAULT_MAJORGRID_CELLSIZE / 2;
-	y -= DEFAULT_MAJORGRID_CELLSIZE / 2;
-
-	x *= DEFAULT_MINORGRID_FIXED_POINT;
-	y *= DEFAULT_MINORGRID_FIXED_POINT;
-
-	x_maj += cam->target.x_maj;
-	y_maj += cam->target.y_maj;
-	x += cam->target.x;
-	y += cam->target.y;
-
-	return (Position) {x, y, x_maj, y_maj};
-}
-
-Position Eng_pointf_to_position(SDL_FPoint target) {
-	int32_t x_maj =
-		((int32_t) target.x / DEFAULT_MAJORGRID_CELLSIZE) - (target.x < 0);
-	int32_t y_maj =
-		((int32_t) target.y / DEFAULT_MAJORGRID_CELLSIZE) - (target.y < 0);
-
-	int32_t x = target.x - (x_maj * DEFAULT_MAJORGRID_CELLSIZE);
-	int32_t y = target.y - (y_maj * DEFAULT_MAJORGRID_CELLSIZE);
-
-	x -= DEFAULT_MAJORGRID_CELLSIZE / 2;
-	y -= DEFAULT_MAJORGRID_CELLSIZE / 2;
-
-	x *= DEFAULT_MINORGRID_FIXED_POINT;
-	y *= DEFAULT_MINORGRID_FIXED_POINT;
-
-	return (Position) {x, y, x_maj, y_maj};
-}
-/* Scale the width and height components of a given
-SDL_FRect to a given factor (for example camera zoom)
-SDL_FRect target: rectangle to scale float scale:
-factor to multiply by*/
-SDL_FRect Eng_frect_scale(SDL_FRect target, float scale) {
-	return (SDL_FRect) {target.x, target.y, target.w * scale, target.h * scale};
-}
-
-/* Adds two positions ontop of another, handling overflow
- from minor to major
- * grid.
- Position a: first summand
- Position b: second summand */
-Position Eng_position_add(Position a, Position b) {
-	int32_t maj_x = a.x_maj + b.x_maj;
-	int32_t maj_y = a.y_maj + b.y_maj;
-	// TODO MAKE THIS BRANCHLESS PLEASSEEEEE
-	if(((int64_t) a.x + (int64_t) b.x) < INT32_MIN) maj_x--;
-	if(((int64_t) a.y + (int64_t) b.y) < INT32_MIN) maj_y--;
-	if(((int64_t) a.x + (int64_t) b.x) > INT32_MAX) maj_x++;
-	if(((int64_t) a.y + (int64_t) b.y) > INT32_MAX) maj_y++;
-	uint32_t x = a.x + b.x;
-	uint32_t y = a.y + b.y;
-	return (Position) {x, y, maj_x, maj_y};
-}
-
-/* Adds an SDL_FPoint ontop of a position. Note that this
-function does NOT do screenspace conversion on the
-SDL_FPoint. Position a: position to add ontop of SDL_FPoint
-b: vector2 to add ontop of the position */
-Position Eng_position_add_pointf(Position a, SDL_FPoint b) {
-	Position b_pos = Eng_pointf_to_position(
-		Eng_pointf_add_value(b, (float) (DEFAULT_MAJORGRID_CELLSIZE >> 1))
-	);
-	return Eng_position_add(a, b_pos);
-}
-
-Position Eng_position_invert(Position target) {
-	return (Position) {-target.x, -target.y, -target.x_maj, -target.y_maj};
-}
-
-Position Eng_position_subtract(Position minuend, Position subtrahend) {
-	return Eng_position_add(minuend, Eng_position_invert(subtrahend));
-}
-
-float Eng_get_distance(Position from, Position to) {
-	return Eng_pointf_length(Eng_pointf_subtract(
-		Eng_position_to_pointf(to), Eng_position_to_pointf(from)
-	));
-}
-
 // GameObject management
 // =======================================================
 
@@ -773,100 +607,10 @@ Error Eng_unhook_update(void* data) {
 	return ERR_PASS;
 }
 
-// Vector math
-// =================================================================
+// Misc
 
-/* Add the components of two vector2s together
-   SDL_FPoint a: First summand
-   SDL_FPoit b: Second summand*/
-SDL_FPoint Eng_pointf_add(SDL_FPoint a, SDL_FPoint b) {
-	return (SDL_FPoint) {a.x + b.x, a.y + b.y};
-}
-
-SDL_FPoint Eng_pointf_add_value(SDL_FPoint a, float b) {
-	return (SDL_FPoint) {a.x + b, a.y + b};
-}
-
-SDL_FPoint Eng_pointf_invert(SDL_FPoint target) {
-	return (SDL_FPoint) {-target.x, -target.y};
-}
-
-SDL_FPoint Eng_pointf_subtract(SDL_FPoint minuend, SDL_FPoint subtrahend) {
-	return Eng_pointf_add(minuend, Eng_pointf_invert(subtrahend));
-}
-
-/* Rotates a vector around its origin point by a given
- * amount of degrees clockwise with 0° at -y (North)
- * SDL_FPoint a: target vector2
- * float deg: angle to rotate by
- */
-SDL_FPoint Eng_pointf_rotate(SDL_FPoint a, float deg) {
-	const float x = (a.x * cos(deg * DEG2RAD)) - (a.y * sin(deg * DEG2RAD));
-	const float y = (a.x * sin(deg * DEG2RAD)) + (a.y * cos(deg * DEG2RAD));
-	return (SDL_FPoint) {x, y};
-}
-
-/* Set the lengths of a vector2 to 1 while preserving the
- * rotation SDL_FPoint a: target vector2
- */
-SDL_FPoint Eng_pointf_normalize(SDL_FPoint a) {
-	const float length = sqrt((a.x * a.x) + (a.y * a.y));
-	if(length <= SDL_FLT_EPSILON) return a;
-	const float x = a.x / length;
-	const float y = a.y / length;
-	return (SDL_FPoint) {x, y};
-}
-
-/* Multiply the components of a vector2 by a given scale
- * multiplier SDL_FPoint a: target Vector2 double scale:
- * multiplier */
-SDL_FPoint Eng_pointf_scale(SDL_FPoint a, double scale) {
-	if(scale == SDL_FLT_EPSILON || Eng_pointf_length(a) <= SDL_FLT_EPSILON)
-		return a;
-	float x = a.x * scale;
-	float y = a.y * scale;
-	return (SDL_FPoint) {x, y};
-}
-
-/* Generate a vector2 with a given length or rotation,
- * shorthand for pointf_scale(pointf_rotate(vec, rot))
- * float magnitude: the length of the Vector float
- * rotation: the rotation in degrees, running clockwise and
- * centered at -y (North) */
-SDL_FPoint Eng_pointf_force(float magnitude, float rotation) {
-	SDL_FPoint vec = (SDL_FPoint) {0.0f, -1.0};
-	vec            = Eng_pointf_scale(vec, magnitude);
-	vec            = Eng_pointf_rotate(vec, rotation);
-	return vec;
-}
-
-/* Get the length of a given vector2
- * SDL_FPoint a: the target vector2 to get the length of */
-float Eng_pointf_length(SDL_FPoint a) {
-	const float length = sqrt((a.x * a.x) + (a.y * a.y));
-	if(length <= SDL_FLT_EPSILON) return 0.0f;
-	return length;
-}
-
-/* Get the direction to a certain vector2 from another
- * vector2 on the compass scale (360°, 0° at -y) SDL_FPoint
- * zero: The reference point, where the bearing line is
- * drawn from SDL_FPoint tgt: The target point, where the
- * bearing line will be drawn two */
-float Eng_pointf_bearing(SDL_FPoint zero, SDL_FPoint tgt) {
-	float angle = atan2(tgt.x - zero.x, zero.y - tgt.y) * RAD2DEG;
-	if(angle < 0) angle += 360;
-	return angle;
-}
-
-/* Returns the factor to multiply a time-based value by in
- * order to compensate for frame disparities. For example,
- * if the value is 1.1, the previous frame was finished in
- * 110% of the time it should have. Multiply this value by
- * the animation speed, for example, and the visual
- * movement will stay uniform across framerates. */
 double Eng_get_deltatime_factor(void) {
-	return ((double) (1'000'000'000) / Eng_desired_fps) / last_frame_time;
+	return last_frame_time / ((double) 1'000'000'000 / Eng_desired_fps);
 }
 
 #endif

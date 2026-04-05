@@ -13,23 +13,23 @@ enum GameObject_Types : uint32_t {
 
 // Declarations
 struct GameObject_Player {
-	bool       alive;
-	Position   pos;
-	double     rot;
-	SDL_FPoint vel;
-	float      ang_vel;
-	float      force_main_thruster;
-	float      force_rcs_thrusters;
-	float      force_rot;
+	bool     alive;
+	Position pos;
+	double   rot;
+	Vector2f vel;
+	float    ang_vel;
+	float    force_main_thruster;
+	float    force_rcs_thrusters;
+	float    force_rot;
 };
 Error GameObject_player_update(void* data, uint32_t index_of_self);
 Error GameObject_player_create(void);
 
 struct GameObject_Asteroid {
-	Position   pos;
-	float      rot;
-	SDL_FPoint vel;
-	double     ang_vel;
+	Position pos;
+	float    rot;
+	Vector2f vel;
+	double   ang_vel;
 };
 Error GameObject_asteroid_create(struct GameObject_Asteroid* override);
 Error GameObject_asteroid_update(void* data, uint32_t index_of_self);
@@ -56,45 +56,44 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	if(Eng_get_key_pressed(KEY_A)) self->ang_vel -= force_rot;
 	if(Eng_get_key_pressed(KEY_D)) self->ang_vel += force_rot;
 	if(Eng_get_key_pressed(KEY_W)) {
-		self->vel =
-			Eng_pointf_add(Eng_pointf_force(thrust_main, self->rot), self->vel);
+		self->vel = Vec2f_add(Vec2f_force(thrust_main, self->rot), self->vel);
 	}
 	if(Eng_get_key_pressed(KEY_I))
-		self->vel =
-			Eng_pointf_add(Eng_pointf_force(thrust_rcs, self->rot), self->vel);
+		self->vel = Vec2f_add(Vec2f_force(thrust_rcs, self->rot), self->vel);
 	if(Eng_get_key_pressed(KEY_J))
-		self->vel = Eng_pointf_add(
-			Eng_pointf_force(thrust_rcs, WRAP_COMPASS((int) self->rot - 90)),
+		self->vel = Vec2f_add(
+			Vec2f_force(thrust_rcs, WRAP_COMPASS((int) self->rot - 90)),
 			self->vel
 		);
 
 	if(Eng_get_key_pressed(KEY_K))
-		self->vel = Eng_pointf_add(
-			Eng_pointf_force(thrust_rcs, WRAP_COMPASS((int) self->rot + 180)),
+		self->vel = Vec2f_add(
+			Vec2f_force(thrust_rcs, WRAP_COMPASS((int) self->rot + 180)),
 			self->vel
 		);
 	if(Eng_get_key_pressed(KEY_L))
-		self->vel = Eng_pointf_add(
-			Eng_pointf_force(thrust_rcs, WRAP_COMPASS((int) self->rot + 90)),
+		self->vel = Vec2f_add(
+			Vec2f_force(thrust_rcs, WRAP_COMPASS((int) self->rot + 90)),
 			self->vel
 		);
 	if(Eng_get_key_pressed(KEY_MOUSE_LEFT)) {
-		self->rot = Eng_pointf_bearing(
-			Eng_get_screen_pos(self->pos, &Eng_std_camera), Eng_mouse_pos
+		self->rot = FPoint_angle_to(
+			Pos_world_to_screen(self->pos, &Eng_std_camera), Eng_mouse_pos
 		);
 	}
 
-	self->pos = Eng_position_add_pointf(self->pos, self->vel);
+	self->pos = Pos_add_Vec2f(self->pos, self->vel);
 	self->rot = WRAP_COMPASS((int) (self->rot + self->ang_vel));
 
 	SDL_FPoint player_screen_pos =
-		Eng_get_screen_pos(self->pos, &Eng_std_camera);
-	SDL_FRect player_rect = Eng_frect_scale(
+		Pos_world_to_screen(self->pos, &Eng_std_camera);
+	SDL_FRect player_rect = Pos_frect_scale(
 		(SDL_FRect) {player_screen_pos.x, player_screen_pos.y, 50, 50},
 		Eng_std_camera.zoom
 	);
 	SDL_FPoint player_off = {25, 25};
-	SDL_FPoint player_ctr = Eng_pointf_add(player_screen_pos, player_off);
+	SDL_FPoint player_ctr = (SDL_FPoint) {player_screen_pos.x + player_off.x,
+	                                      player_screen_pos.y + player_off.y};
 
 	// Draw player
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
@@ -106,18 +105,15 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	// Draw lateral movement guides
 	if(Eng_get_key_pressed(KEY_LALT)) {
 		const SDL_FPoint bow =
-			Eng_pointf_add(Eng_pointf_force(75, self->rot), player_ctr);
-		const SDL_FPoint stern = Eng_pointf_add(
-			Eng_pointf_force(75, PROPER_MOD((int) self->rot + 180, 360)),
-			player_ctr
+			FPoint_add(FPoint_force(75, self->rot), player_ctr);
+		const SDL_FPoint stern = FPoint_add(
+			FPoint_force(75, PROPER_MOD((int) self->rot + 180, 360)), player_ctr
 		);
-		const SDL_FPoint port = Eng_pointf_add(
-			Eng_pointf_force(75, PROPER_MOD((int) self->rot - 90, 360)),
-			player_ctr
+		const SDL_FPoint port = FPoint_add(
+			FPoint_force(75, PROPER_MOD((int) self->rot - 90, 360)), player_ctr
 		);
-		const SDL_FPoint starboard = Eng_pointf_add(
-			Eng_pointf_force(75, PROPER_MOD((int) self->rot + 90, 360)),
-			player_ctr
+		const SDL_FPoint starboard = FPoint_add(
+			FPoint_force(75, PROPER_MOD((int) self->rot + 90, 360)), player_ctr
 		);
 		thickLineRGBA(
 			renderer, bow.x, bow.y, stern.x, stern.y, 3, 25, 60, 165, 255
@@ -130,9 +126,9 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 
 	// Draw velocity vector
 	SDL_FPoint dest =
-		Eng_pointf_add(player_ctr, Eng_pointf_scale(self->vel, 10));
+		FPoint_add(player_ctr, FPoint_scale(Vec2f_to_FPoint(self->vel), 10));
 	SDL_FPoint dest2 =
-		Eng_pointf_add(player_ctr, Eng_pointf_scale(self->vel, -10));
+		FPoint_add(player_ctr, FPoint_scale(Vec2f_to_FPoint(self->vel), -10));
 	SDL_FRect dest_icantbefucked = {dest.x - 12.5f, dest.y - 12.5f, 25, 25};
 	SDL_FRect dest_icantbefucked2eletricboogaloo = {
 		dest2.x - 12.5f, dest2.y - 12.5f, 25, 25
@@ -189,11 +185,10 @@ Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
 	struct GameObject_Asteroid self;
 	if(!override) {
 		float rot = 0;
-		self =
-			(struct GameObject_Asteroid) {.ang_vel = 0,
-		                                  .pos     = (Position) {0, 0, 0, 0},
-		                                  .rot     = rot,
-		                                  .vel = Eng_pointf_force(3.0f, rot)};
+		self      = (struct GameObject_Asteroid) {.ang_vel = 0,
+		                                          .pos     = (Position) {0, 0, 0, 0},
+		                                          .rot     = rot,
+		                                          .vel     = Vec2f_force(3.0, rot)};
 	}
 
 	struct GameObject_Asteroid* new = NULL;
@@ -226,12 +221,12 @@ Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
 	// Update
 	double deltatime = Eng_get_deltatime_factor();
 
-	self->pos = Eng_position_add_pointf(
+	self->pos = Pos_add_Vec2f(
 		self->pos, self->vel // TODO switch out for new int based system
 	);
 	self->rot += self->ang_vel * deltatime;
-	SDL_FPoint screen_pos = Eng_get_screen_pos(self->pos, &Eng_std_camera);
-	SDL_FRect  dest_rect  = Eng_frect_scale(
+	SDL_FPoint screen_pos = Pos_world_to_screen(self->pos, &Eng_std_camera);
+	SDL_FRect  dest_rect  = Pos_frect_scale(
         (SDL_FRect) {screen_pos.x, screen_pos.y, 100, 100}, Eng_std_camera.zoom
     );
 	SDL_FPoint center = {screen_pos.x + 50.0f, screen_pos.y + 50.0f};

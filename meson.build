@@ -20,6 +20,7 @@ executable(
     'src/main.c',
 	'src/engine.c',
 	'src/gameobjects.c',
+	'src/utils.c',
 	res,
 
     dependencies: [

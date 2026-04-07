@@ -95,7 +95,7 @@ Error Eng_unhook_update(void* data);
 double Eng_get_deltatime_factor(void);
 
 // KEY input handling BEGIN
-#define KEYS X(W) X(A) X(S) X(D) X(LALT) X(I) X(J) X(K) X(L)
+#define KEYS X(W) X(A) X(S) X(D) X(LALT) X(I) X(J) X(K) X(L) X(MINUS) X(PLUS)
 
 enum Keys : uint32_t {
 #define X(x) KEY_##x,
@@ -300,7 +300,8 @@ SDL_AppResult Eng_init(void) {
 
 	// Arbitrary initializations
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-	Eng_std_camera = (Camera) {(Position) {0}, 1.0f};
+	Eng_std_camera =
+		(Camera) {Pos_easy_get_pos(0, 0, 0, 0), 1.0f, 1, Eng_screensize};
 
 	ASSERT_PREDICATE(!fatal_error, return SDL_APP_FAILURE;
 	                 ,
@@ -399,6 +400,17 @@ Error Eng_tick_once(void) {
 	// Grey background
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
+
+	if(Eng_get_key_pressed(KEY_MINUS)) {
+		Eng_std_camera.zoom_factor =
+			clamp(INT8_MIN, INT8_MAX, Eng_std_camera.zoom_factor - 1);
+		Eng_std_camera.zoom = 1 * pow(1.1, Eng_std_camera.zoom_factor);
+	}
+	if(Eng_get_key_pressed(KEY_PLUS)) {
+		Eng_std_camera.zoom_factor =
+			clamp(INT8_MIN, INT8_MAX, Eng_std_camera.zoom_factor + 1);
+		Eng_std_camera.zoom = 1 * pow(1.1, Eng_std_camera.zoom_factor);
+	}
 
 	for(uint32_t i = 0; i < update_callbacks_len; i++) {
 		if(update_callbacks[i].func(update_callbacks[i].argv, i) == ERR_FATAL) {

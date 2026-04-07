@@ -82,23 +82,21 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 		);
 	}
 
-	self->pos = Pos_add_Vec2f(self->pos, self->vel);
-	self->rot = WRAP_COMPASS((int) (self->rot + self->ang_vel));
+	self->pos             = Pos_add_Vec2f(self->pos, self->vel);
+	self->rot             = WRAP_COMPASS((int) (self->rot + self->ang_vel));
+	Eng_std_camera.target = self->pos;
 
-	SDL_FPoint player_screen_pos =
-		Pos_world_to_screen(self->pos, &Eng_std_camera);
-	SDL_FRect player_rect = Pos_frect_scale(
-		(SDL_FRect) {player_screen_pos.x, player_screen_pos.y, 50, 50},
-		Eng_std_camera.zoom
+	SDL_FRect  player_rect   = (SDL_FRect) {0, 0, 50, 50};
+	SDL_FPoint player_origin = {25, 25};
+	SDL_FPoint player_ctr    = {0};
+	Pos_cam_transform(
+		&self->pos, &player_ctr, &player_rect, &player_origin, &Eng_std_camera
 	);
-	SDL_FPoint player_off = {25, 25};
-	SDL_FPoint player_ctr = (SDL_FPoint) {player_screen_pos.x + player_off.x,
-	                                      player_screen_pos.y + player_off.y};
 
 	// Draw player
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
 	SDL_RenderTextureRotated(
-		renderer, TEX_PLAYER.tex, NULL, &player_rect, self->rot, &player_off,
+		renderer, TEX_PLAYER.tex, NULL, &player_rect, self->rot, &player_origin,
 		SDL_FLIP_NONE
 	);
 
@@ -125,25 +123,37 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	}
 
 	// Draw velocity vector
-	SDL_FPoint dest =
-		FPoint_add(player_ctr, FPoint_scale(Vec2f_to_FPoint(self->vel), 10));
-	SDL_FPoint dest2 =
-		FPoint_add(player_ctr, FPoint_scale(Vec2f_to_FPoint(self->vel), -10));
-	SDL_FRect dest_icantbefucked = {dest.x - 12.5f, dest.y - 12.5f, 25, 25};
-	SDL_FRect dest_icantbefucked2eletricboogaloo = {
-		dest2.x - 12.5f, dest2.y - 12.5f, 25, 25
-	};
+	Position prog_world_pos = Pos_add_Vec2f(
+		self->pos, Vec2f_scale(self->vel, 10 * Eng_std_camera.zoom)
+	);
+	Position retro_world_pos = Pos_add_Vec2f(
+		self->pos, Vec2f_scale(self->vel, -10 * Eng_std_camera.zoom)
+	);
+	SDL_FPoint prog_pos     = {0};
+	SDL_FPoint retro_pos    = {0};
+	SDL_FRect  prog_dest    = {0, 0, 25, 25};
+	SDL_FRect  retro_dest   = {0, 0, 25, 25};
+	SDL_FPoint prog_origin  = {12.5, 12.5};
+	SDL_FPoint retro_origin = {12.5, 12.5};
+
+	Pos_cam_transform(
+		&prog_world_pos, &prog_pos, &prog_dest, &prog_origin, &Eng_std_camera
+	);
+	Pos_cam_transform(
+		&retro_world_pos, &retro_pos, &retro_dest, &retro_origin,
+		&Eng_std_camera
+	);
+
+	SDL_RenderTexture(renderer, TEX_PROGRADE.tex, NULL, &prog_dest);
+	SDL_RenderTexture(renderer, TEX_RETROGRADE.tex, NULL, &retro_dest);
+
 	thickLineColor(
-		renderer, player_ctr.x, player_ctr.y, dest.x, dest.y, 3,
+		renderer, player_ctr.x, player_ctr.y, prog_pos.x, prog_pos.y, 3,
 		htobe32(0x94DE0AFF)
 	);
-	SDL_RenderTexture(renderer, TEX_PROGRADE.tex, NULL, &dest_icantbefucked);
 	thickLineColor(
-		renderer, player_ctr.x, player_ctr.y, dest2.x, dest2.y, 3,
+		renderer, player_ctr.x, player_ctr.y, retro_pos.x, retro_pos.y, 3,
 		htobe32(0xD2DB27FF)
-	);
-	SDL_RenderTexture(
-		renderer, TEX_RETROGRADE.tex, NULL, &dest_icantbefucked2eletricboogaloo
 	);
 
 	return ERR_PASS;
@@ -185,10 +195,12 @@ Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
 	struct GameObject_Asteroid self;
 	if(!override) {
 		float rot = 0;
-		self      = (struct GameObject_Asteroid) {.ang_vel = 0,
-		                                          .pos     = (Position) {0, 0, 0, 0},
-		                                          .rot     = rot,
-		                                          .vel     = Vec2f_force(3.0, rot)};
+		self      = (struct GameObject_Asteroid) {
+				 .ang_vel = 4.0f,
+				 .pos     = (Position) {0, 0, 0, 0},
+				 .rot     = rot,
+				 .vel     = Vec2f_force(3.0, SDL_randf() * 360)
+        };
 	}
 
 	struct GameObject_Asteroid* new = NULL;
@@ -225,15 +237,16 @@ Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
 		self->pos, self->vel // TODO switch out for new int based system
 	);
 	self->rot += self->ang_vel * deltatime;
-	SDL_FPoint screen_pos = Pos_world_to_screen(self->pos, &Eng_std_camera);
-	SDL_FRect  dest_rect  = Pos_frect_scale(
-        (SDL_FRect) {screen_pos.x, screen_pos.y, 100, 100}, Eng_std_camera.zoom
-    );
-	SDL_FPoint center = {screen_pos.x + 50.0f, screen_pos.y + 50.0f};
+
+	SDL_FPoint screen_pos = {0};
+	SDL_FRect  dest       = {0, 0, 100, 100};
+	SDL_FPoint origin     = {50.0f, 50.0f};
+
+	Pos_cam_transform(&self->pos, &screen_pos, &dest, &origin, &Eng_std_camera);
 
 	// Draw
 	SDL_RenderTextureRotated(
-		renderer, TEX_ASTEROID.tex, NULL, &dest_rect, self->rot, &center,
+		renderer, TEX_ASTEROID.tex, NULL, &dest, self->rot, &origin,
 		SDL_FLIP_NONE
 	);
 

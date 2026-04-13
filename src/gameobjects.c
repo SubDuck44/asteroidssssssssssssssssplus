@@ -267,6 +267,19 @@ Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
 	);
 	self->rot += self->ang_vel * deltatime;
 
+	ColInfo col = Eng_get_collision(self->hitbox, &Eng_std_collision_tree);
+	if(col.collided && col.typeof_owner == GAMEOBJECT_ASTEROID) {
+		self->vel = Vec2f_rotate(
+			self->vel,
+			Vec2f_angle_to(
+				FPoint_to_Vec2f(
+					Pos_world_to_screen(col.collider->pos, &Eng_std_camera)
+				),
+				FPoint_to_Vec2f(Pos_world_to_screen(self->pos, &Eng_std_camera))
+			)
+		);
+	}
+
 	SDL_FPoint screen_pos = {0};
 	SDL_FRect  dest       = {0, 0, 100, 100};
 	SDL_FPoint origin     = {50.0f, 50.0f};

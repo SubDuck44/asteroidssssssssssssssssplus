@@ -85,14 +85,21 @@ typedef struct {
 	uint16_t len;
 	uint16_t cap;
 } ColTree;
+typedef struct {
+	ColRect* collider;
+	void*    owner;
+	uint32_t typeof_owner;
+	bool     collided;
+} ColInfo;
 // -----------------------------------------------------------------------------
 Error Eng_init_coltree(ColTree* dest);
 Error Eng_register_hitbox(
 	Position pos, Vector2f size, void* owner, uint32_t typeof_owner,
 	ColRect** dest, ColTree* in
 );
-Error Eng_unregister_hitbox(ColRect* target, ColTree* in);
-Error Eng_update_hitbox(ColRect* target, Position* pos, Vector2f* size);
+Error   Eng_unregister_hitbox(ColRect* target, ColTree* in);
+Error   Eng_update_hitbox(ColRect* target, Position* pos, Vector2f* size);
+ColInfo Eng_get_collision(ColRect* target, ColTree* in);
 
 // GameObject management
 typedef struct {
@@ -566,6 +573,25 @@ Error Eng_update_hitbox(ColRect* target, Position* pos, Vector2f* size) {
 		SDL_RenderRect(renderer, &dest);
 	}
 	return ERR_PASS;
+}
+
+ColInfo Eng_get_collision(ColRect* target, ColTree* in) {
+	for(uint16_t i = 0; i < in->len; i++) {
+		ColRect* cur = &in->arr[i];
+		if(Pos_check_collision(
+			   target->pos, target->size, cur->pos, cur->size
+		   )) {
+			ColInfo data = {
+				.collider     = cur,
+				.owner        = cur->owner,
+				.typeof_owner = cur->typeof_owner,
+				.collided     = true,
+			};
+			return data;
+		}
+	}
+
+	return (ColInfo) {0};
 }
 
 // GameObject management

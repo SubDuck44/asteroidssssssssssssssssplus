@@ -64,6 +64,10 @@ Position Pos_add_Vec2f(Position a, Vector2f b);
 Position Pos_invert(Position target);
 Position Pos_subtract(Position minuend, Position subtrahend);
 Distance Pos_get_distance(Position from, Position to);
+bool     Pos_check_collision(
+		Position target, Vector2f target_size, Position rect_origin,
+		Vector2f rect_size
+	);
 
 // Vector2 math
 typedef struct {
@@ -346,6 +350,21 @@ Distance Pos_get_distance(Position from, Position to) {
 	const Position diff = Pos_subtract(to, from);
 	return (Distance) {Vec2_length((Vector2) {diff.x, diff.y}),
 	                   Vec2_length((Vector2) {diff.x_maj, diff.y_maj})};
+}
+
+bool Pos_check_collision(
+	Position target, Vector2f target_size, Position rect_origin,
+	Vector2f rect_size
+) {
+	SDL_FRect a = {0, 0, target_size.x, target_size.y};
+	rect_origin = Pos_subtract(rect_origin, target);
+	SDL_FRect b = {
+		rect_origin.x + (DEFAULT_MAJORGRID_CELLSIZE * rect_origin.x_maj),
+		rect_origin.y + (DEFAULT_MAJORGRID_CELLSIZE * rect_origin.y_maj),
+		rect_size.x, rect_size.y
+	};
+
+	return (a.w >= b.x && 0 <= b.x + b.w && a.h >= b.x && 0 <= b.y + b.h);
 }
 
 // Vector2 math

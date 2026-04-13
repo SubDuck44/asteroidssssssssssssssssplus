@@ -56,10 +56,9 @@ void       Pos_cam_transform(
 		  Position* world_pos, SDL_FPoint* screen_pos, SDL_FRect* dest,
 		  SDL_FPoint* origin, Camera* cam
 	  );
-SDL_FRect Pos_frect_scale(SDL_FRect target, float scale);
-Position  Pos_easy_get_pos(
-	 int32_t pixel_x, int32_t pixel_y, int32_t maj_x, int32_t maj_y
- );
+Position Pos_easy_get_pos(
+	int32_t pixel_x, int32_t pixel_y, int32_t maj_x, int32_t maj_y
+);
 Position Pos_add(Position a, Position b);
 Position Pos_add_Vec2f(Position a, Vector2f b);
 Position Pos_invert(Position target);
@@ -309,12 +308,6 @@ Position Pos_add_Vec2f(Position a, Vector2f b) {
 
 	return Pos_add(a, (Position) {x, y, x_maj, y_maj});
 }
-
-/* Scale the width and height components of a given
-SDL_FRect to a given factor (for example camera zoom)
-SDL_FRect target: rectangle to scale float scale:
-factor to multiply by*/
-SDL_FRect Pos_frect_scale(SDL_FRect target, float scale) {}
 
 Position Pos_easy_get_pos(
 	int32_t pixel_x, int32_t pixel_y, int32_t maj_x, int32_t maj_y

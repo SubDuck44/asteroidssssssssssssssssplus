@@ -52,6 +52,7 @@
 #define DEFAULT_FPS 60
 #define DEFAULT_FPS_TEXTBUFFER_SIZE 64
 #define DEFAULT_FONTSIZE 12.0f
+#define DEFAULT_COLTREE_SIZE 16
 
 typedef bool Error;
 
@@ -71,6 +72,27 @@ SDL_AppResult Eng_init(void);
 void          Eng_exit(void);
 SDL_AppResult Eng_tick_input(SDL_Event* event);
 Error         Eng_tick_once(void);
+
+// Collision system
+typedef struct {
+	Position pos;
+	Vector2f size;
+	void*    owner;
+	uint32_t typeof_owner;
+} ColRect;
+typedef struct {
+	ColRect* arr;
+	uint16_t len;
+	uint16_t cap;
+} ColTree;
+// -----------------------------------------------------------------------------
+Error Eng_init_coltree(ColTree* dest);
+Error Eng_register_hitbox(
+	Position pos, Vector2f size, void* owner, uint32_t typeof_owner,
+	ColRect** dest, ColTree* in
+);
+Error Eng_unregister_hitbox(ColRect* target, ColTree* in);
+Error Eng_update_hitbox(ColRect* target, Position* pos, Vector2f* size);
 
 // GameObject management
 typedef struct {
@@ -126,6 +148,8 @@ extern SDL_Renderer* renderer;
 extern Camera Eng_std_camera;
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
+
+static ColTree collision_tree;
 
 static GameObject* game_objects     = {0};
 static uint32_t    game_objects_len = 0;
@@ -433,6 +457,84 @@ Error Eng_tick_once(void) {
 	Eng_current_fps =
 		(((double) (1'000'000'000) / last_frame_time) + Eng_current_fps) / 2;
 
+	return ERR_PASS;
+}
+
+// Collision system ============================================================
+
+Error Eng_init_coltree(ColTree* dest) {
+	dest->arr = calloc(DEFAULT_COLTREE_SIZE, sizeof(ColRect));
+	ASSERT_PREDICATE(
+		dest->arr, return ERR_FATAL;
+		,
+		CODE_SUCCESS
+		"INFO: Successfully allocated memory for collision tree" CODE_END,
+		CODE_ERROR
+		"FATAL: Failed to allocate memory for collision tree" CODE_END
+	);
+	dest->cap = DEFAULT_COLTREE_SIZE;
+	dest->len = 0;
+
+	return ERR_PASS;
+}
+
+Error Eng_register_hitbox(
+	Position pos, Vector2f size, void* owner, uint32_t typeof_owner,
+	ColRect** dest, ColTree* in
+) {
+	ColRect data = {
+		.pos = pos, .size = size, .owner = owner, .typeof_owner = typeof_owner
+	};
+
+	if(in->len + 1 > in->cap) {
+		ColRect* tmp = reallocarray(in->arr, in->cap * 2, sizeof(*in->arr));
+		ASSERT_PREDICATE(
+			tmp, return ERR_FATAL;
+			, CODE_SUCCESS "INFO: Successfully expanded ColTree" CODE_END,
+			CODE_ERROR "FATAL: Failed to expand Coltree" CODE_END
+		);
+		in->arr = tmp;
+	}
+	in->arr[in->len] = data;
+	*dest            = &in->arr[in->len];
+	in->len++;
+
+	return ERR_PASS;
+}
+
+Error Eng_unregister_hitbox(ColRect* target, ColTree* in) {
+	for(uint16_t i = 0; i < in->len; i++) {
+		if(&in->arr[i] == target) {
+			if(i != in->len - 1) { in->arr[i] = in->arr[in->len - 1]; }
+			in->len--;
+
+			if(in->len <= in->cap >> 1 &&
+			   in->cap >> 1 <= DEFAULT_COLTREE_SIZE) {
+				ColRect* tmp =
+					reallocarray(in->arr, in->cap >> 1, sizeof(*in->arr));
+				ASSERT_PREDICATE(
+					tmp, return ERR_FATAL;
+					, CODE_SUCCESS "INFO: Successfully shrunk ColTree" CODE_END,
+					CODE_ERROR "FATAL: Failed to shrink ColTree" CODE_END
+				);
+				in->arr = tmp;
+				in->cap /= 2;
+			}
+			break;
+		}
+	}
+
+	SDL_Log(
+		"WARNING: Could not find target ColRect %p in ColTree %p",
+		(void*) target, (void*) in
+	);
+
+	return ERR_PASS;
+}
+
+Error Eng_update_hitbox(ColRect* target, Position* pos, Vector2f* size) {
+	target->pos  = (pos) ? *pos : target->pos;
+	target->size = (size) ? *size : target->size;
 	return ERR_PASS;
 }
 

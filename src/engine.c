@@ -117,7 +117,8 @@ Error Eng_unhook_update(void* data);
 double Eng_get_deltatime_factor(void);
 
 // KEY input handling BEGIN
-#define KEYS X(W) X(A) X(S) X(D) X(LALT) X(I) X(J) X(K) X(L) X(MINUS) X(PLUS)
+#define KEYS                                                                   \
+	X(W) X(A) X(S) X(D) X(LALT) X(I) X(J) X(K) X(L) X(MINUS) X(PLUS) X(F3)
 
 enum Keys : uint32_t {
 #define X(x) KEY_##x,
@@ -138,6 +139,9 @@ extern SDL_Point Eng_screensize;
 extern uint32_t  Eng_desired_fps;
 extern uint32_t  Eng_current_fps;
 
+extern ColTree Eng_std_collision_tree;
+extern bool    Eng_debug_vis;
+
 extern TTF_Font*       Eng_font;
 extern TTF_TextEngine* Eng_text_engine;
 extern const char      EMB_IOSEVKA_FONT[];
@@ -149,8 +153,6 @@ extern Camera Eng_std_camera;
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
-static ColTree collision_tree;
-
 static GameObject* game_objects     = {0};
 static uint32_t    game_objects_len = 0;
 static uint32_t    game_objects_cap = DEFAULT_GAMEOBJECT_QUEUE_CAP;
@@ -158,6 +160,14 @@ static uint32_t    game_objects_cap = DEFAULT_GAMEOBJECT_QUEUE_CAP;
 static UpdateHook* update_callbacks     = {0};
 static uint32_t    update_callbacks_len = 0;
 static uint32_t    update_callbacks_cap = DEFAULT_UPDATECALLBACK_QUEUE_CAP;
+
+ColTree Eng_std_collision_tree;
+
+#ifndef NDEBUG
+bool Eng_debug_vis = true;
+#else
+bool Eng_debug_vis = false;
+#endif
 
 static uint64_t last_frame_time = 1;
 uint32_t        Eng_desired_fps = 60;
@@ -322,6 +332,13 @@ SDL_AppResult Eng_init(void) {
 		);
 #endif
 
+	// Try setup ColTree
+	ASSERT_PREDICATE(
+		Eng_init_coltree(&Eng_std_collision_tree), fatal_error = true;
+		, CODE_SUCCESS "INFO: Succesfully initialized ColTree" CODE_END,
+		CODE_ERROR "FATAL: Failed to initialize ColTree" CODE_END
+	);
+
 	// Arbitrary initializations
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 	Eng_std_camera =
@@ -410,6 +427,8 @@ SDL_AppResult Eng_tick_input(SDL_Event* event) {
 		);
 		return SDL_APP_SUCCESS;
 	}
+
+	if(Eng_get_key_pressed(KEY_F3)) Eng_debug_vis = !Eng_debug_vis;
 
 	return SDL_APP_CONTINUE;
 }
@@ -535,6 +554,17 @@ Error Eng_unregister_hitbox(ColRect* target, ColTree* in) {
 Error Eng_update_hitbox(ColRect* target, Position* pos, Vector2f* size) {
 	target->pos  = (pos) ? *pos : target->pos;
 	target->size = (size) ? *size : target->size;
+	if(Eng_debug_vis) {
+		SDL_FPoint pos    = {0};
+		SDL_FRect  dest   = {0, 0, target->size.x, target->size.y};
+		SDL_FPoint origin = {0, 0};
+		Pos_cam_transform(&target->pos, &pos, &dest, &origin, &Eng_std_camera);
+		dest.x -= dest.w / 2;
+		dest.y -= dest.h / 2;
+
+		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+		SDL_RenderRect(renderer, &dest);
+	}
 	return ERR_PASS;
 }
 

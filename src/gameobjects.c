@@ -21,6 +21,7 @@ struct GameObject_Player {
 	float    force_main_thruster;
 	float    force_rcs_thrusters;
 	float    force_rot;
+	ColRect* hitbox;
 };
 Error GameObject_player_update(void* data, uint32_t index_of_self);
 Error GameObject_player_create(void);
@@ -30,6 +31,7 @@ struct GameObject_Asteroid {
 	float    rot;
 	Vector2f vel;
 	double   ang_vel;
+	ColRect* hitbox;
 };
 Error GameObject_asteroid_create(struct GameObject_Asteroid* override);
 Error GameObject_asteroid_update(void* data, uint32_t index_of_self);
@@ -92,6 +94,9 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	Pos_cam_transform(
 		&self->pos, &player_ctr, &player_rect, &player_origin, &Eng_std_camera
 	);
+
+	if(Eng_update_hitbox(self->hitbox, &self->pos, NULL) == ERR_FATAL)
+		return ERR_FATAL;
 
 	// Draw player
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
@@ -171,6 +176,18 @@ Error GameObject_player_create(void) {
 		.force_rcs_thrusters = 0.1,
 	};
 	struct GameObject_Player* new = NULL;
+	Error failed                  = Eng_register_hitbox(
+        self.pos, (Vector2f) {50, 50}, new, GAMEOBJECT_PLAYER, &self.hitbox,
+        &Eng_std_collision_tree
+    );
+	ASSERT_PREDICATE(
+		failed == ERR_PASS, return ERR_FATAL;
+		,
+		CODE_SUCCESS
+		"INFO: Successfully registered hitbox for GameObject player" CODE_END,
+		CODE_ERROR
+		"FATAL: Failed to register hitbox for GameObject player" CODE_END
+	);
 	ASSERT_PREDICATE(
 		Eng_create_object(
 			&self, (void*) &new, sizeof(struct GameObject_Player),
@@ -204,6 +221,18 @@ Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
 	}
 
 	struct GameObject_Asteroid* new = NULL;
+	Error failed                    = Eng_register_hitbox(
+        self.pos, (Vector2f) {100, 100}, new, GAMEOBJECT_ASTEROID, &self.hitbox,
+        &Eng_std_collision_tree
+    );
+	ASSERT_PREDICATE(
+		failed, return ERR_FATAL;
+		,
+		CODE_SUCCESS
+		"INFO: Successfully registered hitbox for GameObject asteroid" CODE_END,
+		CODE_ERROR
+		"FATAL: Failed to register hitbox for GameObject asteroid" CODE_END
+	);
 	ASSERT_PREDICATE(Eng_create_object(
 						 (override) ? override : &self, (void*) &new,
 						 sizeof(struct GameObject_Asteroid), GAMEOBJECT_ASTEROID
@@ -244,6 +273,9 @@ Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
 
 	Pos_cam_transform(&self->pos, &screen_pos, &dest, &origin, &Eng_std_camera);
 
+	Vector2f size = (Vector2f) {100, 100};
+	Eng_update_hitbox(self->hitbox, &self->pos, &size);
+
 	// Draw
 	SDL_RenderTextureRotated(
 		renderer, TEX_ASTEROID.tex, NULL, &dest, self->rot, &origin,
@@ -255,14 +287,16 @@ Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
 
 Error GameObject_fps_display_update(void* data, uint32_t index_of_self) {
 	(void) index_of_self;
-	struct GaneObject_FPS_Display* self = data;
+	if(Eng_debug_vis) {
+		struct GaneObject_FPS_Display* self = data;
 
-	char fps_string[64] = {0};
-	snprintf(fps_string, sizeof(fps_string), "FPS: %d", Eng_current_fps);
-	TTF_SetTextString(self->display, fps_string, sizeof(fps_string));
+		char fps_string[64] = {0};
+		snprintf(fps_string, sizeof(fps_string), "FPS: %d", Eng_current_fps);
+		TTF_SetTextString(self->display, fps_string, sizeof(fps_string));
 
-	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-	TTF_DrawRendererText(self->display, self->pos.x, self->pos.y);
+		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+		TTF_DrawRendererText(self->display, self->pos.x, self->pos.y);
+	}
 	return ERR_PASS;
 }
 Error GameObject_fps_display_create(SDL_FPoint pos) {

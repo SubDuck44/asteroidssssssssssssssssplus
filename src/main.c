@@ -63,7 +63,6 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	(void) appstate;
 	(void) result;
-	Eng_exit();
 	// Window/renderer cleanup done by SDL
 }
 #endif

@@ -2,43 +2,7 @@
 
 #define APPLICATION_TITLE "Asteroidssssssssssssssss+"
 #define _DEFAULT_SOURCE
-#define ERR_FATAL false
-#define ERR_PASS true
-#define CODE_ERROR "[1;31m"
-#define CODE_WARN "[1;33m"
-#define CODE_SUCCESS "[1;32m"
-#define CODE_END "[m"
 
-#ifndef NDEBUG
-#define ASSERT_PREDICATE(predicate, catch, success, error)                     \
-	do {                                                                       \
-		if(!(predicate)) {                                                     \
-			SDL_Log(error);                                                    \
-			catch                                                              \
-		} else {                                                               \
-			SDL_Log(success);                                                  \
-		}                                                                      \
-	} while(0)
-#define ASSERT_PREDICATE_SDL(predicate, catch, success, error)                 \
-	do {                                                                       \
-		if(!(predicate)) {                                                     \
-			SDL_Err(error);                                                    \
-			catch                                                              \
-		} else {                                                               \
-			SDL_Log(success);                                                  \
-		}                                                                      \
-	} while(0)
-#else
-#define ASSERT_PREDICATE(predicate, catch, success, error) predicate
-#define ASSERT_PREDICATE_SDL(predicate, catch, success, error) predicate
-#endif
-#define SDL_Err(fmt, ...)                                                      \
-	do {                                                                       \
-		SDL_LogError(                                                          \
-			SDL_LOG_CATEGORY_APPLICATION, fmt ": %s",                          \
-			__VA_ARGS__ __VA_OPT__(, ) SDL_GetError()                          \
-		);                                                                     \
-	} while(0)
 #define GAMEOBJECT_CREATE_SUCCESS "INFO: Successfully created GameObject"
 #define GAMEOBJECT_CREATE_FAILURE "FATAL: Failed to create GameObject"
 #define WRAP_COMPASS(x) PROPER_MOD(x, 360)
@@ -54,8 +18,6 @@
 #define DEFAULT_FONTSIZE 12.0f
 #define DEFAULT_COLTREE_SIZE 16
 
-typedef bool Error;
-
 #include <SDL3/SDL.h>
 #include <SDL3_gfx/SDL3_gfxPrimitives.h>
 #include <SDL3_ttf/SDL_ttf.h>
@@ -64,6 +26,7 @@ typedef bool Error;
 #include <endian.h>
 #include <stdio.h>
 
+#include "repl.c"
 #include "res.c"
 #include "utils.c"
 
@@ -120,12 +83,12 @@ Error Eng_hook_update(Method func, void* data);
 Error Eng_unhook_update(void* data);
 
 // Misc
-
 double Eng_get_deltatime_factor(void);
 
 // KEY input handling BEGIN
 #define KEYS                                                                   \
-	X(W) X(A) X(S) X(D) X(LALT) X(I) X(J) X(K) X(L) X(MINUS) X(PLUS) X(F3)
+	X(W)                                                                       \
+	X(A) X(S) X(D) X(LALT) X(I) X(J) X(K) X(L) X(MINUS) X(PLUS) X(F3) X(RETURN)
 
 enum Keys : uint32_t {
 #define X(x) KEY_##x,
@@ -346,6 +309,13 @@ SDL_AppResult Eng_init(void) {
 		CODE_ERROR "FATAL: Failed to initialize ColTree" CODE_END
 	);
 
+	// Try setup DebugRepl
+	ASSERT_PREDICATE(
+		Repl_init(), fatal_error = true;
+		, CODE_SUCCESS "INFO: Successfully initialized DebugRepl" CODE_END,
+		CODE_ERROR "FATAL: Failed to initialize DebugRepl" CODE_END
+	);
+
 	// Arbitrary initializations
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 	Eng_std_camera =
@@ -364,6 +334,7 @@ SDL_AppResult Eng_init(void) {
 /* Runs at the end of the program. */
 void Eng_exit(void) {
 	SDL_Log("INFO: Shutting down…");
+	_exit(0);
 }
 
 /*
@@ -403,7 +374,7 @@ SDL_AppResult Eng_tick_input(SDL_Event* event) {
 		case SDLK_ESCAPE:
 			// Manual quit from the window
 			SDL_Log("INFO: Escape pressed, exiting…");
-			return SDL_APP_SUCCESS;
+			Eng_exit();
 
 #define X(x)                                                                   \
 	case SDLK_##x:                                                             \
@@ -432,7 +403,7 @@ SDL_AppResult Eng_tick_input(SDL_Event* event) {
 			"INFO: Received termination request from "
 			"system, exiting…"
 		);
-		return SDL_APP_SUCCESS;
+		Eng_exit();
 	}
 
 	if(Eng_get_key_pressed(KEY_F3)) Eng_debug_vis = !Eng_debug_vis;
@@ -482,6 +453,15 @@ Error Eng_tick_once(void) {
 
 	Eng_current_fps =
 		(((double) (1'000'000'000) / last_frame_time) + Eng_current_fps) / 2;
+
+	// Process DebugRepl
+	if(SDL_TryWaitSemaphore(Repl_repl.semaphore)) {
+		switch(Repl_repl.command) {
+		case COMMAND_EXIT:
+			SDL_Log("INFO: Received exit command from DebugRepl, exiting…");
+			Eng_exit();
+		}
+	}
 
 	return ERR_PASS;
 }
@@ -551,7 +531,8 @@ Error Eng_unregister_hitbox(ColRect* target, ColTree* in) {
 	}
 
 	SDL_Log(
-		"WARNING: Could not find target ColRect %p in ColTree %p",
+		CODE_WARN
+		"WARNING: Could not find target ColRect %p in ColTree %p" CODE_END,
 		(void*) target, (void*) in
 	);
 

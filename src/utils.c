@@ -1,8 +1,10 @@
 #pragma once
 
-#include <math.h>
-
 #include <SDL3/SDL.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -10,6 +12,45 @@
 
 #define RAD2DEG (180 / M_PI)
 #define DEG2RAD (1 / RAD2DEG)
+
+// Errors
+#define ERR_FATAL false
+#define ERR_PASS true
+#define CODE_ERROR "[1;31m"
+#define CODE_WARN "[1;33m"
+#define CODE_SUCCESS "[1;32m"
+#define CODE_END "[m"
+#ifndef NDEBUG
+#define ASSERT_PREDICATE(predicate, catch, success, error)                     \
+	do {                                                                       \
+		if(!(predicate)) {                                                     \
+			SDL_Log(error);                                                    \
+			catch                                                              \
+		} else {                                                               \
+			SDL_Log(success);                                                  \
+		}                                                                      \
+	} while(0)
+#define ASSERT_PREDICATE_SDL(predicate, catch, success, error)                 \
+	do {                                                                       \
+		if(!(predicate)) {                                                     \
+			SDL_Err(error);                                                    \
+			catch                                                              \
+		} else {                                                               \
+			SDL_Log(success);                                                  \
+		}                                                                      \
+	} while(0)
+#else
+#define ASSERT_PREDICATE(predicate, catch, success, error) predicate
+#define ASSERT_PREDICATE_SDL(predicate, catch, success, error) predicate
+#endif
+#define SDL_Err(fmt, ...)                                                      \
+	do {                                                                       \
+		SDL_LogError(                                                          \
+			SDL_LOG_CATEGORY_APPLICATION, fmt ": %s",                          \
+			__VA_ARGS__ __VA_OPT__(, ) SDL_GetError()                          \
+		);                                                                     \
+	} while(0)
+typedef bool Error;
 
 // Vector2f math
 typedef struct {

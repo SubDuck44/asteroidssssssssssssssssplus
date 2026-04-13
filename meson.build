@@ -21,6 +21,7 @@ executable(
 	'src/engine.c',
 	'src/gameobjects.c',
 	'src/utils.c',
+	'src/repl.c',
 	res,
 
     dependencies: [

@@ -18,9 +18,10 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 - FPS regulation (without VSync)
 - Utterly /obliterate/ floating point worries
 - Camera (zoom, pan)
-** In Progress
 - Slight inaccuracies in thruster output
 - Spawning and simulating asteroids
+- Debug repl
+** In Progress
 ** Far roadmap
 *** Engine
 - Groundwork for persistent data serialization

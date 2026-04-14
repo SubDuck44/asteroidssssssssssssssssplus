@@ -1,14 +1,7 @@
 #pragma once
 
 #include <SDL3/SDL.h>
-#include <SDL3_gfx/SDL3_gfxPrimitives.h>
-#include <SDL3_ttf/SDL_ttf.h>
-
-#include <endian.h>
 #include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -44,8 +37,9 @@
 		}                                                                      \
 	} while(0)
 #else
-#define ASSERT_PREDICATE(predicate, catch, success, error) predicate
-#define ASSERT_PREDICATE_SDL(predicate, catch, success, error) predicate
+#define ASSERT_PREDICATE(predicate, catch, success, error) (void) (predicate)
+#define ASSERT_PREDICATE_SDL(predicate, catch, success, error)                 \
+	(void) (predicate)
 #endif
 #define SDL_Err(fmt, ...)                                                      \
 	do {                                                                       \
@@ -462,7 +456,6 @@ Vector2 Vec2_scale(Vector2 a, int32_t scale) {
  * CLOCKWISE circle with NORTH-UP (0° at -y) */
 int32_t Vec2_angle_to(Vector2 from, Vector2 to) {
 	uint32_t angle = atan2(to.x - from.x, from.y - to.y) * RAD2DEG;
-	if(angle < 0) angle += 360;
 	return angle;
 }
 

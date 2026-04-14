@@ -1,8 +1,15 @@
 #pragma once
 
-#include "engine.c"
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
 
+#if __INCLUDE_LEVEL__ == 0
 #include <SDL3/SDL.h>
+
+#include "engine.c"
+#include "utils.c"
+#endif
 
 enum GameObject_Types : uint32_t {
 	GAMEOBJECT_PLAYER,
@@ -44,6 +51,12 @@ Error GameObject_fps_display_update(void* data, uint32_t index_of_self);
 Error GameObject_fps_display_create(SDL_FPoint pos);
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
+
+#include <SDL3_gfx/SDL3_gfxPrimitives.h>
+#include <endian.h>
+#include <stdio.h>
+
+#include "res.c"
 
 // Function definitions
 Error GameObject_player_update(void* data, uint32_t index_of_self) {

@@ -1,13 +1,8 @@
-#pragma once
-
-#define _DEFAULT_SOURCE
-
-#include "engine.c"
-
-#if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
-
 #define SDL_MAIN_USE_CALLBACKS
 #include <SDL3/SDL_main.h> // Dont move this or DIE
+
+#include "engine.c"
+#include "gameobjects.c"
 
 SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	(void) appstate;
@@ -48,4 +43,3 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	(void) result;
 	// Window/renderer cleanup done by SDL
 }
-#endif

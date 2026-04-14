@@ -54,6 +54,9 @@
             sdl3-ttf
             sdl3-gfx
           ];
+
+          mesonBuildType = "release";
+          mesonFlags = [ "--werror" ];
         };
 
         devShells.default = pkgs.mkShell {

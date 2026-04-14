@@ -3,6 +3,8 @@
 #define _POSIX_C_SOURCE 200809L
 #define REPL_ARGBUF_SIZE 16
 
+#include <stdio.h>
+
 #include "utils.c"
 
 enum ReplCommands : uint8_t {
@@ -94,15 +96,16 @@ int Repl_run(void* data) {
 			}
 		}
 
+		char* arg = NULL;
+
 		switch(match) {
-			char* arg = NULL;
 		case COMMAND_INVALID:
 			SDL_Log("ERROR: Could not find command \"%s\"", self->buf);
 			break;
 		case COMMAND_ECHO:
 			arg = try_get_arg(1, arg_buf, arg_buf_len);
 			if(!arg) {
-				SDL_Log("ERROR: Invalid arg to echo: %s", arg);
+				SDL_Log("ERROR: null arg to echo");
 				break;
 			}
 			SDL_Log("%s", arg);

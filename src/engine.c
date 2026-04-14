@@ -1,7 +1,10 @@
 #pragma once
 
-#define APPLICATION_TITLE "Asteroidssssssssssssssss+"
+#ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
+#endif
+
+#define APPLICATION_TITLE "Asteroidssssssssssssssss+"
 
 #define GAMEOBJECT_CREATE_SUCCESS "INFO: Successfully created GameObject"
 #define GAMEOBJECT_CREATE_FAILURE "FATAL: Failed to create GameObject"
@@ -18,15 +21,15 @@
 #define DEFAULT_FONTSIZE 12.0f
 #define DEFAULT_COLTREE_SIZE 16
 
-#include "repl.c"
-#include "res.c"
+#include <SDL3_ttf/SDL_ttf.h>
+
 #include "utils.c"
 
 // Control flow
-SDL_AppResult Eng_init(void);
-void          Eng_exit(void);
-SDL_AppResult Eng_tick_input(SDL_Event* event);
-Error         Eng_tick_once(void);
+SDL_AppResult     Eng_init(void);
+[[noreturn]] void Eng_exit(void);
+SDL_AppResult     Eng_tick_input(SDL_Event* event);
+Error             Eng_tick_once(void);
 
 // Collision system
 typedef struct {
@@ -113,9 +116,14 @@ extern SDL_Renderer* renderer;
 
 extern Camera Eng_std_camera;
 
-#include "gameobjects.c"
-
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
+
+#include <stdlib.h>
+#include <unistd.h>
+
+#include "gameobjects.c"
+#include "repl.c"
+#include "res.c"
 
 static GameObject* game_objects     = {0};
 static uint32_t    game_objects_len = 0;
@@ -294,6 +302,8 @@ SDL_AppResult Eng_init(void) {
 						 "%d textures" CODE_END,
 			TEXTURES_COUNT
 		);
+#else
+	(void) texture_failed;
 #endif
 
 	// Try setup ColTree
@@ -326,7 +336,7 @@ SDL_AppResult Eng_init(void) {
 }
 
 /* Runs at the end of the program. */
-void Eng_exit(void) {
+[[noreturn]] void Eng_exit(void) {
 	SDL_Log("INFO: Shutting down…");
 	_exit(0);
 }

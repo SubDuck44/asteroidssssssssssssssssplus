@@ -18,14 +18,6 @@
 #define DEFAULT_FONTSIZE 12.0f
 #define DEFAULT_COLTREE_SIZE 16
 
-#include <SDL3/SDL.h>
-#include <SDL3_gfx/SDL3_gfxPrimitives.h>
-#include <SDL3_ttf/SDL_ttf.h>
-#include <stdlib.h>
-
-#include <endian.h>
-#include <stdio.h>
-
 #include "repl.c"
 #include "res.c"
 #include "utils.c"
@@ -120,6 +112,8 @@ extern SDL_Window*   window;
 extern SDL_Renderer* renderer;
 
 extern Camera Eng_std_camera;
+
+#include "gameobjects.c"
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
@@ -375,6 +369,7 @@ SDL_AppResult Eng_tick_input(SDL_Event* event) {
 			// Manual quit from the window
 			SDL_Log("INFO: Escape pressed, exiting…");
 			Eng_exit();
+			break;
 
 #define X(x)                                                                   \
 	case SDLK_##x:                                                             \
@@ -460,6 +455,16 @@ Error Eng_tick_once(void) {
 		case COMMAND_EXIT:
 			SDL_Log("INFO: Received exit command from DebugRepl, exiting…");
 			Eng_exit();
+		case COMMAND_SPAWN_ASTEROID:
+			SDL_Log("INFO: Spawning asteroid above camera target");
+			ASSERT_PREDICATE(
+				GameObject_asteroid_create(NULL), return ERR_FATAL;
+				,
+				CODE_SUCCESS
+				"INFO: Successfully created GameObject asteroid" CODE_END,
+				CODE_ERROR
+				"FATAL: Failed to create GameObject asteroid" CODE_END
+			);
 		}
 	}
 

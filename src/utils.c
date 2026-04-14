@@ -1,6 +1,10 @@
 #pragma once
 
 #include <SDL3/SDL.h>
+#include <SDL3_gfx/SDL3_gfxPrimitives.h>
+#include <SDL3_ttf/SDL_ttf.h>
+
+#include <endian.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -141,9 +145,12 @@ float      FPoint_length(SDL_FPoint a);
 Vector2f   FPoint_to_Vec2f(SDL_FPoint a);
 
 // Misc
-double clamp(double min, double max, double val);
-double min(double a, double b);
-double max(double a, double b);
+double  clamp(double min, double max, double val);
+int32_t clampi(int32_t minimum, int32_t maximum, int32_t value);
+int32_t mini(int32_t a, int32_t b);
+int32_t maxi(int32_t a, int32_t b);
+double  min(double a, double b);
+double  max(double a, double b);
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 // Vector2f math ===============================================================
@@ -476,12 +483,24 @@ double clamp(double minimum, double maximum, double val) {
 	return min(maximum, max(minimum, val));
 }
 
+int32_t clampi(int32_t minimum, int32_t maximum, int32_t value) {
+	return mini(maximum, maxi(minimum, value));
+}
+
 double min(double a, double b) {
 	return (a < b) ? a : b;
 }
 
+int32_t mini(int32_t a, int32_t b) {
+	return (a <= b) ? a : b;
+}
+
 double max(double a, double b) {
 	return (a > b) ? a : b;
+}
+
+int32_t maxi(int32_t a, int32_t b) {
+	return (a >= b) ? a : b;
 }
 
 #endif

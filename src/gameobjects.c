@@ -214,9 +214,10 @@ Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
 		float rot = 0;
 		self      = (struct GameObject_Asteroid) {
 				 .ang_vel = 4.0f,
-				 .pos     = (Position) {0, 0, 0, 0},
-				 .rot     = rot,
-				 .vel     = Vec2f_force(3.0, SDL_randf() * 360)
+				 .pos =
+                Pos_add_Vec2f(Eng_std_camera.target, (Vector2f) {0.0, -50.0}),
+				 .rot = rot,
+				 .vel = Vec2f_force(3.0, SDL_randf() * 360)
         };
 	}
 

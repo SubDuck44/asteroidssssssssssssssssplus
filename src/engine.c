@@ -33,7 +33,7 @@ Error             Eng_tick_once(void);
 
 // Collision system
 typedef struct {
-	Position pos;
+	Vector2l pos;
 	Vector2f size;
 	void*    owner;
 	uint32_t typeof_owner;
@@ -52,11 +52,11 @@ typedef struct {
 // -----------------------------------------------------------------------------
 Error Eng_init_coltree(ColTree* dest);
 Error Eng_register_hitbox(
-	Position pos, Vector2f size, void* owner, uint32_t typeof_owner,
+	Vector2l pos, Vector2f size, void* owner, uint32_t typeof_owner,
 	ColRect** dest, ColTree* in
 );
 Error   Eng_unregister_hitbox(ColRect* target, ColTree* in);
-Error   Eng_update_hitbox(ColRect* target, Position* pos, Vector2f* size);
+Error   Eng_update_hitbox(ColRect* target, Vector2l* pos, Vector2f* size);
 ColInfo Eng_get_collision(ColRect* target, ColTree* in);
 
 // GameObject management
@@ -322,8 +322,7 @@ SDL_AppResult Eng_init(void) {
 
 	// Arbitrary initializations
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-	Eng_std_camera =
-		(Camera) {Pos_easy_get_pos(0, 0, 0, 0), 1.0f, 1, Eng_screensize};
+	Eng_std_camera = (Camera) {(Vector2l) {0, 0}, 1.0f, 1, Eng_screensize};
 
 	ASSERT_PREDICATE(!fatal_error, return SDL_APP_FAILURE;
 	                 ,
@@ -500,7 +499,7 @@ Error Eng_init_coltree(ColTree* dest) {
 }
 
 Error Eng_register_hitbox(
-	Position pos, Vector2f size, void* owner, uint32_t typeof_owner,
+	Vector2l pos, Vector2f size, void* owner, uint32_t typeof_owner,
 	ColRect** dest, ColTree* in
 ) {
 	ColRect data = {
@@ -554,14 +553,14 @@ Error Eng_unregister_hitbox(ColRect* target, ColTree* in) {
 	return ERR_PASS;
 }
 
-Error Eng_update_hitbox(ColRect* target, Position* pos, Vector2f* size) {
+Error Eng_update_hitbox(ColRect* target, Vector2l* pos, Vector2f* size) {
 	target->pos  = (pos) ? *pos : target->pos;
 	target->size = (size) ? *size : target->size;
 	if(Eng_debug_vis) {
 		SDL_FPoint pos    = {0};
 		SDL_FRect  dest   = {0, 0, target->size.x, target->size.y};
 		SDL_FPoint origin = {0, 0};
-		Pos_cam_transform(&target->pos, &pos, &dest, &origin, &Eng_std_camera);
+		Cam_transform(&target->pos, &pos, &dest, &origin, &Eng_std_camera);
 		dest.x -= dest.w / 2;
 		dest.y -= dest.h / 2;
 
@@ -574,7 +573,7 @@ Error Eng_update_hitbox(ColRect* target, Position* pos, Vector2f* size) {
 ColInfo Eng_get_collision(ColRect* target, ColTree* in) {
 	for(uint16_t i = 0; i < in->len; i++) {
 		ColRect* cur = &in->arr[i];
-		if(Pos_check_collision(
+		if(colrect_check_collision(
 			   target->pos, target->size, cur->pos, cur->size
 		   )) {
 			ColInfo data = {

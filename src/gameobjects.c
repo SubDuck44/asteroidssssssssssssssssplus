@@ -21,7 +21,7 @@ enum GameObject_Types : uint32_t {
 // Declarations
 struct GameObject_Player {
 	bool     alive;
-	Position pos;
+	Vector2l pos;
 	double   rot;
 	Vector2f vel;
 	float    ang_vel;
@@ -34,7 +34,7 @@ Error GameObject_player_update(void* data, uint32_t index_of_self);
 Error GameObject_player_create(void);
 
 struct GameObject_Asteroid {
-	Position pos;
+	Vector2l pos;
 	float    rot;
 	Vector2f vel;
 	double   ang_vel;
@@ -93,18 +93,19 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 		);
 	if(Eng_get_key_pressed(KEY_MOUSE_LEFT)) {
 		self->rot = FPoint_angle_to(
-			Pos_world_to_screen(self->pos, &Eng_std_camera), Eng_mouse_pos
+			Cam_world_to_screen(self->pos, &Eng_std_camera), Eng_mouse_pos
 		);
 	}
 
-	self->pos             = Pos_add_Vec2f(self->pos, self->vel);
+	self->pos =
+		Vec2l_add_Vec2f(self->pos, Vec2f_scale(self->vel, DEFAULT_FIXED_POINT));
 	self->rot             = WRAP_COMPASS((int) (self->rot + self->ang_vel));
 	Eng_std_camera.target = self->pos;
 
 	SDL_FRect  player_rect   = (SDL_FRect) {0, 0, 50, 50};
 	SDL_FPoint player_origin = {25, 25};
 	SDL_FPoint player_ctr    = {0};
-	Pos_cam_transform(
+	Cam_transform(
 		&self->pos, &player_ctr, &player_rect, &player_origin, &Eng_std_camera
 	);
 
@@ -141,10 +142,10 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	}
 
 	// Draw velocity vector
-	Position prog_world_pos = Pos_add_Vec2f(
+	Vector2l prog_world_pos = Vec2l_add_Vec2f(
 		self->pos, Vec2f_scale(self->vel, 10 * Eng_std_camera.zoom)
 	);
-	Position retro_world_pos = Pos_add_Vec2f(
+	Vector2l retro_world_pos = Vec2l_add_Vec2f(
 		self->pos, Vec2f_scale(self->vel, -10 * Eng_std_camera.zoom)
 	);
 	SDL_FPoint prog_pos     = {0};
@@ -154,10 +155,10 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	SDL_FPoint prog_origin  = {12.5, 12.5};
 	SDL_FPoint retro_origin = {12.5, 12.5};
 
-	Pos_cam_transform(
+	Cam_transform(
 		&prog_world_pos, &prog_pos, &prog_dest, &prog_origin, &Eng_std_camera
 	);
-	Pos_cam_transform(
+	Cam_transform(
 		&retro_world_pos, &retro_pos, &retro_dest, &retro_origin,
 		&Eng_std_camera
 	);
@@ -228,7 +229,7 @@ Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
 		self      = (struct GameObject_Asteroid) {
 				 .ang_vel = 4.0f,
 				 .pos =
-                Pos_add_Vec2f(Eng_std_camera.target, (Vector2f) {0.0, -50.0}),
+                Vec2l_add_Vec2f(Eng_std_camera.target, (Vector2f) {0.0, -50.0}),
 				 .rot = rot,
 				 .vel = Vec2f_force(3.0, SDL_randf() * 360)
         };
@@ -276,7 +277,7 @@ Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
 	// Update
 	double deltatime = Eng_get_deltatime_factor();
 
-	self->pos = Pos_add_Vec2f(
+	self->pos = Vec2l_add_Vec2f(
 		self->pos, self->vel // TODO switch out for new int based system
 	);
 	self->rot += self->ang_vel * deltatime;
@@ -287,9 +288,9 @@ Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
 			self->vel,
 			Vec2f_angle_to(
 				FPoint_to_Vec2f(
-					Pos_world_to_screen(col.collider->pos, &Eng_std_camera)
+					Cam_world_to_screen(col.collider->pos, &Eng_std_camera)
 				),
-				FPoint_to_Vec2f(Pos_world_to_screen(self->pos, &Eng_std_camera))
+				FPoint_to_Vec2f(Cam_world_to_screen(self->pos, &Eng_std_camera))
 			)
 		);
 	}
@@ -298,7 +299,7 @@ Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
 	SDL_FRect  dest       = {0, 0, 100, 100};
 	SDL_FPoint origin     = {50.0f, 50.0f};
 
-	Pos_cam_transform(&self->pos, &screen_pos, &dest, &origin, &Eng_std_camera);
+	Cam_transform(&self->pos, &screen_pos, &dest, &origin, &Eng_std_camera);
 
 	Vector2f size = (Vector2f) {100, 100};
 	Eng_update_hitbox(self->hitbox, &self->pos, &size);

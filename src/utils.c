@@ -68,45 +68,43 @@ Vector2f   Vec2f_force(double magnitude, double rotation);
 double     Vec2f_length(Vector2f a);
 SDL_FPoint Vec2f_to_FPoint(Vector2f a);
 
+// Vector2 long math
+typedef struct {
+	int64_t x;
+	int64_t y;
+} Vector2l;
+// -----------------------------------------------------------------------------
+Vector2l Vec2l_add(Vector2l a, Vector2l b);
+Vector2l Vec2l_add_value(Vector2l a, int64_t b);
+Vector2l Vec2l_add_fpoint(Vector2l a, SDL_FPoint b);
+Vector2l Vec2l_add_Vec2f(Vector2l a, Vector2f b);
+Vector2l Vec2l_invert(Vector2l target);
+Vector2l Vec2l_subtract(Vector2l minuend, Vector2l subtrahend);
+Vector2l Vec2l_rotate(Vector2l a, int64_t deg);
+Vector2l Vec2l_normalize(Vector2l a, uint64_t fixed_point);
+Vector2l Vec2l_scale(Vector2l a, int64_t scale);
+int64_t  Vec2l_angle_to(Vector2l from, Vector2l to);
+Vector2l Vec2l_force(int64_t magnitude, int64_t rotation);
+int64_t  Vec2l_length(Vector2l a);
+double   Vec2l_get_distance(Vector2l from, Vector2l to);
+
 // Camera/transform system
-#define DEFAULT_MAJORGRID_CELLSIZE 1024
-#define DEFAULT_MINORGRID_FIXED_POINT 4194304
+#define DEFAULT_COLLGRID_CELLSIZE 1024
+#define DEFAULT_FIXED_POINT 4194304
 
 typedef struct {
-	int32_t x;
-	int32_t y;
-	int32_t x_maj;
-	int32_t y_maj;
-} Position;
-typedef struct {
-	int32_t min;
-	int32_t maj;
-} Distance;
-typedef struct {
-	Position  target;
+	Vector2l  target;
 	float     zoom;
 	int8_t    zoom_factor;
 	SDL_Point screensize;
 } Camera;
 // -----------------------------------------------------------------------------
-SDL_FPoint Pos_world_to_screen(Position target, Camera* cam);
-Position   Pos_screen_to_world(SDL_FPoint target, Camera* cam);
-void       Pos_cam_transform(
-		  Position* world_pos, SDL_FPoint* screen_pos, SDL_FRect* dest,
+SDL_FPoint Cam_world_to_screen(Vector2l target, Camera* cam);
+Vector2l   Cam_screen_to_world(SDL_FPoint target, Camera* cam);
+void       Cam_transform(
+		  Vector2l* world_pos, SDL_FPoint* screen_pos, SDL_FRect* dest,
 		  SDL_FPoint* origin, Camera* cam
 	  );
-Position Pos_easy_get_pos(
-	int32_t pixel_x, int32_t pixel_y, int32_t maj_x, int32_t maj_y
-);
-Position Pos_add(Position a, Position b);
-Position Pos_add_Vec2f(Position a, Vector2f b);
-Position Pos_invert(Position target);
-Position Pos_subtract(Position minuend, Position subtrahend);
-Distance Pos_get_distance(Position from, Position to);
-bool     Pos_check_collision(
-		Position target, Vector2f target_size, Position rect_origin,
-		Vector2f rect_size
-	);
 
 // Vector2 math
 typedef struct {
@@ -145,9 +143,74 @@ int32_t mini(int32_t a, int32_t b);
 int32_t maxi(int32_t a, int32_t b);
 double  min(double a, double b);
 double  max(double a, double b);
+bool    colrect_check_collision(
+	   Vector2l self_pos, Vector2f self_size, Vector2l other_pos,
+	   Vector2f other_size
+   );
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
-// Vector2f math ===============================================================
+
+// Vector2l math ===============================================================
+
+Vector2l Vec2l_add(Vector2l a, Vector2l b) {
+	return (Vector2l) {a.x + b.x, a.y + b.y};
+}
+
+Vector2l Vec2l_add_value(Vector2l a, int64_t b) {
+	return (Vector2l) {a.x + b, a.y + b};
+}
+
+Vector2l Vec2l_add_fpoint(Vector2l a, SDL_FPoint b) {
+	return (Vector2l) {a.x + b.x, a.y + b.y};
+}
+
+Vector2l Vec2l_add_Vec2f(Vector2l a, Vector2f b) {
+	return (Vector2l) {a.x + b.x, a.y + b.y};
+}
+
+Vector2l Vec2l_invert(Vector2l target) {
+	return (Vector2l) {-target.x, -target.y};
+}
+
+Vector2l Vec2l_subtract(Vector2l minuend, Vector2l subtrahend) {
+	return (Vector2l) {minuend.x - subtrahend.x, minuend.y - subtrahend.y};
+}
+
+Vector2l Vec2l_rotate(Vector2l a, int64_t deg) {
+	return (Vector2l) {(a.x * cos(deg * DEG2RAD)) - (a.y * sin(deg * DEG2RAD)),
+	                   (a.x * sin(deg * DEG2RAD)) + (a.y * cos(deg * DEG2RAD))};
+}
+
+Vector2l Vec2l_normalize(Vector2l a, uint64_t fixed_point) {
+	const double length = sqrt((a.x * a.x) + (a.y * a.y)) / fixed_point;
+	if(length <= SDL_FLT_EPSILON) return a;
+	return (Vector2l) {a.x / length, a.y / length};
+}
+
+Vector2l Vec2l_scale(Vector2l a, int64_t scale) {
+	return (Vector2l) {a.x * scale, a.y * scale};
+}
+
+int64_t Vec2l_angle_to(Vector2l from, Vector2l to) {
+	double angle = atan2(to.x - from.x, from.y - to.y) * RAD2DEG;
+	if(angle < SDL_FLT_EPSILON) angle += 360;
+	return angle;
+}
+
+Vector2l Vec2l_force(int64_t magnitude, int64_t rotation) {
+	return Vec2l_rotate(Vec2l_scale((Vector2l) {0, -1}, magnitude), rotation);
+}
+
+int64_t Vec2l_length(Vector2l a) {
+	return sqrt((a.x * a.x) + (a.y * a.y));
+}
+
+double Vec2l_get_distance(Vector2l from, Vector2l to) {
+	return Vec2l_length(Vec2l_subtract(to, from));
+}
+
+// Vector2f math
+// ===============================================================
 
 Vector2f Vec2f_add(Vector2f a, Vector2f b) {
 	return (Vector2f) {a.x + b.x, a.y + b.y};
@@ -200,7 +263,8 @@ SDL_FPoint Vec2f_to_FPoint(Vector2f a) {
 	return (SDL_FPoint) {a.x, a.y};
 }
 
-// SDL_FPoint math =============================================================
+// SDL_FPoint math
+// =============================================================
 
 SDL_FPoint FPoint_add(SDL_FPoint a, SDL_FPoint b) {
 	return (SDL_FPoint) {a.x + b.x, a.y + b.y};
@@ -255,22 +319,14 @@ Vector2f FPoint_to_Vec2f(SDL_FPoint a) {
 	return (Vector2f) {a.x, a.y};
 }
 
-// Camera/transform system
-// =====================================================
+// Camera/transform system REWRITE
+// =============================================
+SDL_FPoint Cam_world_to_screen(Vector2l target, Camera* cam) {
+	int64_t diff_x = (target.x - cam->target.x) / DEFAULT_FIXED_POINT;
+	int64_t diff_y = (target.y - cam->target.y) / DEFAULT_FIXED_POINT;
 
-/* Converts a given Position to screenspace position in
-SDL_FPoint format using a given camera transform Position
-target: position to convert Camera* cam: reference to the
-camera used */
-SDL_FPoint Pos_world_to_screen(Position target, Camera* cam) {
-	int32_t diff_x = (target.x - cam->target.x) / DEFAULT_MINORGRID_FIXED_POINT;
-	int32_t diff_y = (target.y - cam->target.y) / DEFAULT_MINORGRID_FIXED_POINT;
-
-	int32_t diff_x_maj = target.x_maj - cam->target.x_maj;
-	int32_t diff_y_maj = target.y_maj - cam->target.y_maj;
-
-	double screen_x = diff_x + (diff_x_maj * DEFAULT_MAJORGRID_CELLSIZE);
-	double screen_y = diff_y + (diff_y_maj * DEFAULT_MAJORGRID_CELLSIZE);
+	double screen_x = (double) diff_x;
+	double screen_y = (double) diff_y;
 
 	screen_x *= cam->zoom;
 	screen_y *= cam->zoom;
@@ -281,132 +337,32 @@ SDL_FPoint Pos_world_to_screen(Position target, Camera* cam) {
 	return (SDL_FPoint) {screen_x, screen_y};
 }
 
-/* Converts a given screenspace position in SDL_FPoint
-format to a position using a given camera transform
-SDL_FPoint target: screenspace position to convert
-Camera* camm: reference to the camera transform used */
-Position Pos_screen_to_world(SDL_FPoint target, Camera* cam) {
-	int32_t x_maj =
-		((int32_t) target.x / DEFAULT_MAJORGRID_CELLSIZE) - (target.x < 0);
-	int32_t y_maj =
-		((int32_t) target.y / DEFAULT_MAJORGRID_CELLSIZE) - (target.y < 0);
+Vector2l Cam_screen_to_world(SDL_FPoint target, Camera* cam) {
+	int64_t world_x = (target.x * DEFAULT_FIXED_POINT) - cam->target.x;
+	int64_t world_y = (target.y * DEFAULT_FIXED_POINT) - cam->target.y;
 
-	int32_t x = target.x - (x_maj * DEFAULT_MAJORGRID_CELLSIZE);
-	int32_t y = target.y - (y_maj * DEFAULT_MAJORGRID_CELLSIZE);
-
-	x -= DEFAULT_MAJORGRID_CELLSIZE / 2;
-	y -= DEFAULT_MAJORGRID_CELLSIZE / 2;
-
-	x *= DEFAULT_MINORGRID_FIXED_POINT;
-	y *= DEFAULT_MINORGRID_FIXED_POINT;
-
-	x_maj += cam->target.x_maj;
-	y_maj += cam->target.y_maj;
-	x += cam->target.x;
-	y += cam->target.y;
-
-	return (Position) {x, y, x_maj, y_maj};
+	return (Vector2l) {world_x, world_y};
 }
 
-void Pos_cam_transform(
-	Position* world_pos, SDL_FPoint* screen_pos, SDL_FRect* dest,
+void Cam_transform(
+	Vector2l* world_pos, SDL_FPoint* screen_pos, SDL_FRect* dest,
 	SDL_FPoint* origin, Camera* cam
 ) {
-	int32_t diff_x = (world_pos->x / DEFAULT_MINORGRID_FIXED_POINT) -
-	                 (cam->target.x / DEFAULT_MINORGRID_FIXED_POINT);
-	int32_t diff_y = (world_pos->y / DEFAULT_MINORGRID_FIXED_POINT) -
-	                 (cam->target.y / DEFAULT_MINORGRID_FIXED_POINT);
+	SDL_FPoint screen_origin = Cam_world_to_screen(*world_pos, cam);
 
-	int32_t diff_x_maj = world_pos->x_maj - cam->target.x_maj;
-	int32_t diff_y_maj = world_pos->y_maj - cam->target.y_maj;
-
-	double screen_x = diff_x + (diff_x_maj * DEFAULT_MAJORGRID_CELLSIZE);
-	double screen_y = diff_y + (diff_y_maj * DEFAULT_MAJORGRID_CELLSIZE);
-
-	screen_x *= cam->zoom;
-	screen_y *= cam->zoom;
-
-	screen_x += cam->screensize.x >> 1;
-	screen_y += cam->screensize.y >> 1;
+	screen_origin = FPoint_scale(screen_origin, cam->zoom);
 
 	float dest_w = dest->w * cam->zoom;
 	float dest_h = dest->h * cam->zoom;
 
-	screen_x += dest->x;
-	screen_y += dest->y;
+	screen_origin = FPoint_add(screen_origin, (SDL_FPoint) {dest->x, dest->y});
+
+	*screen_pos = screen_origin;
 
 	*origin = (SDL_FPoint) {origin->x * cam->zoom, origin->y * cam->zoom};
-	*dest   = (SDL_FRect) {screen_x - origin->x, screen_y - origin->y, dest_w,
-	                       dest_h};
-	screen_pos->x = screen_x;
-	screen_pos->y = screen_y;
-}
 
-Position Pos_add_Vec2f(Position a, Vector2f b) {
-	int32_t x_maj = (b.x / DEFAULT_MAJORGRID_CELLSIZE);
-	int32_t y_maj = (b.y / DEFAULT_MAJORGRID_CELLSIZE);
-
-	int32_t x = b.x - (x_maj * DEFAULT_MAJORGRID_CELLSIZE);
-	int32_t y = b.y - (y_maj * DEFAULT_MAJORGRID_CELLSIZE);
-
-	x *= DEFAULT_MINORGRID_FIXED_POINT;
-	y *= DEFAULT_MINORGRID_FIXED_POINT;
-
-	return Pos_add(a, (Position) {x, y, x_maj, y_maj});
-}
-
-Position Pos_easy_get_pos(
-	int32_t pixel_x, int32_t pixel_y, int32_t maj_x, int32_t maj_y
-) {
-	return (Position) {pixel_x * DEFAULT_MINORGRID_FIXED_POINT,
-	                   pixel_y * DEFAULT_MINORGRID_FIXED_POINT, maj_x, maj_y};
-}
-
-/* Adds two positions ontop of another, handling overflow
- from minor to major
- * grid.
- Position a: first summand
- Position b: second summand */
-Position Pos_add(Position a, Position b) {
-	int32_t maj_x = a.x_maj + b.x_maj;
-	int32_t maj_y = a.y_maj + b.y_maj;
-	// TODO MAKE THIS BRANCHLESS PLEASSEEEEE
-	if(((int64_t) a.x + (int64_t) b.x) < INT32_MIN) maj_x--;
-	if(((int64_t) a.y + (int64_t) b.y) < INT32_MIN) maj_y--;
-	if(((int64_t) a.x + (int64_t) b.x) > INT32_MAX) maj_x++;
-	if(((int64_t) a.y + (int64_t) b.y) > INT32_MAX) maj_y++;
-	uint32_t x = a.x + b.x;
-	uint32_t y = a.y + b.y;
-	return (Position) {x, y, maj_x, maj_y};
-}
-
-Position Pos_invert(Position target) {
-	return (Position) {-target.x, -target.y, -target.x_maj, -target.y_maj};
-}
-
-Position Pos_subtract(Position minuend, Position subtrahend) {
-	return Pos_add(minuend, Pos_invert(subtrahend));
-}
-
-Distance Pos_get_distance(Position from, Position to) {
-	const Position diff = Pos_subtract(to, from);
-	return (Distance) {Vec2_length((Vector2) {diff.x, diff.y}),
-	                   Vec2_length((Vector2) {diff.x_maj, diff.y_maj})};
-}
-
-bool Pos_check_collision(
-	Position target, Vector2f target_size, Position rect_origin,
-	Vector2f rect_size
-) {
-	SDL_FRect a = {0, 0, target_size.x, target_size.y};
-	rect_origin = Pos_subtract(rect_origin, target);
-	SDL_FRect b = {
-		rect_origin.x + (DEFAULT_MAJORGRID_CELLSIZE * rect_origin.x_maj),
-		rect_origin.y + (DEFAULT_MAJORGRID_CELLSIZE * rect_origin.y_maj),
-		rect_size.x, rect_size.y
-	};
-
-	return (a.w >= b.x && 0 <= b.x + b.w && a.h >= b.x && 0 <= b.y + b.h);
+	*dest = (SDL_FRect) {screen_origin.x - origin->x,
+	                     screen_origin.y - origin->y, dest_w, dest_h};
 }
 
 // Vector2 math
@@ -494,6 +450,22 @@ double max(double a, double b) {
 
 int32_t maxi(int32_t a, int32_t b) {
 	return (a >= b) ? a : b;
+}
+
+bool colrect_check_collision(
+	Vector2l self_pos, Vector2f self_size, Vector2l other_pos,
+	Vector2f other_size
+) {
+	other_pos.x -= self_pos.x;
+	other_pos.y -= self_pos.y;
+
+	self_pos.x = 0;
+	self_pos.y = 0;
+
+	return (
+		self_size.x >= other_pos.x && 0 <= other_pos.x + other_size.x &&
+		self_size.y >= other_pos.x && 0 <= other_pos.y + other_size.y
+	);
 }
 
 #endif

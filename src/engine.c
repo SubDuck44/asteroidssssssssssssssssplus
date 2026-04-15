@@ -346,7 +346,7 @@ SDL_AppResult Eng_init(void) {
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 	Eng_std_camera = (Camera) {(Vector2l) {0, 0}, 1.0f, 1, Eng_screensize};
 
-	ASSERT_PREDICATE(!fatal_error, return SDL_APP_FAILURE;
+	ASSERT_PREDICATE(!fatal_error, Eng_exit();
 	                 ,
 	                 CODE_SUCCESS "INFO: Green across the board, "
 	                              "launching…" CODE_END,

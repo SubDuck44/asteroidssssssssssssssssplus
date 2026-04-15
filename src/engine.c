@@ -59,6 +59,14 @@ Error   Eng_unregister_hitbox(ColRect* target, ColTree* in);
 Error   Eng_update_hitbox(ColRect* target, Vector2l* pos, Vector2f* size);
 ColInfo Eng_get_collision(ColRect* target, ColTree* in);
 
+// Debug stuff
+typedef struct {
+	SDL_FPoint pos;
+	TTF_Text*  display;
+} DebugMenu;
+// -----------------------------------------------------------------------------
+void update_debug_menu(DebugMenu* data);
+
 // GameObject management
 typedef struct {
 	uint32_t type;
@@ -104,8 +112,9 @@ extern SDL_Point Eng_screensize;
 extern uint32_t  Eng_desired_fps;
 extern uint32_t  Eng_current_fps;
 
-extern ColTree Eng_std_collision_tree;
-extern bool    Eng_debug_vis;
+extern ColTree   Eng_std_collision_tree;
+extern DebugMenu Eng_std_debug_menu;
+extern bool      Eng_debug_vis;
 
 extern TTF_Font*       Eng_font;
 extern TTF_TextEngine* Eng_text_engine;
@@ -118,6 +127,7 @@ extern Camera Eng_std_camera;
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
+#include <inttypes.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -134,6 +144,8 @@ static uint32_t    update_callbacks_len = 0;
 static uint32_t    update_callbacks_cap = DEFAULT_UPDATECALLBACK_QUEUE_CAP;
 
 ColTree Eng_std_collision_tree;
+
+DebugMenu Eng_std_debug_menu;
 
 #ifndef NDEBUG
 bool Eng_debug_vis = true;
@@ -320,6 +332,16 @@ SDL_AppResult Eng_init(void) {
 		CODE_ERROR "FATAL: Failed to initialize DebugRepl" CODE_END
 	);
 
+	// Try setup DebugMenu
+	Eng_std_debug_menu =
+		(DebugMenu) {.display = NULL, .pos = (SDL_FPoint) {20.0f, 20.0f}};
+	ASSERT_PREDICATE(
+		TTF_CreateText(Eng_text_engine, Eng_font, "hewo :3", 0),
+		fatal_error = true;
+		, CODE_SUCCESS "INFO: Successfully initialized DebugMenu" CODE_END,
+		CODE_ERROR "FATAL: Failed to initialize DebugMenu" CODE_END
+	);
+
 	// Arbitrary initializations
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 	Eng_std_camera = (Camera) {(Vector2l) {0, 0}, 1.0f, 1, Eng_screensize};
@@ -442,6 +464,9 @@ Error Eng_tick_once(void) {
 			return ERR_FATAL;
 		}
 	}
+
+	// Draw debug menu if debug is visible
+	update_debug_menu(&Eng_std_debug_menu);
 
 	SDL_RenderPresent(renderer);
 
@@ -587,6 +612,21 @@ ColInfo Eng_get_collision(ColRect* target, ColTree* in) {
 	}
 
 	return (ColInfo) {0};
+}
+
+// Debug stuff =================================================================
+void update_debug_menu(DebugMenu* data) {
+	if(Eng_debug_vis) {
+		char fps_string[128] = {0};
+		snprintf(
+			fps_string, sizeof(fps_string), "FPS: %d\nCam Pos: %",
+			Eng_current_fps
+		);
+		TTF_SetTextString(data->display, fps_string, sizeof(fps_string));
+
+		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+		TTF_DrawRendererText(data->display, data->pos.x, data->pos.y);
+	}
 }
 
 // GameObject management

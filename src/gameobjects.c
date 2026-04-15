@@ -43,13 +43,6 @@ struct GameObject_Asteroid {
 Error GameObject_asteroid_create(struct GameObject_Asteroid* override);
 Error GameObject_asteroid_update(void* data, uint32_t index_of_self);
 
-struct GaneObject_FPS_Display {
-	TTF_Text*  display;
-	SDL_FPoint pos;
-};
-Error GameObject_fps_display_update(void* data, uint32_t index_of_self);
-Error GameObject_fps_display_create(SDL_FPoint pos);
-
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
 #include <SDL3_gfx/SDL3_gfxPrimitives.h>
@@ -310,57 +303,6 @@ Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
 		SDL_FLIP_NONE
 	);
 
-	return ERR_PASS;
-}
-
-Error GameObject_fps_display_update(void* data, uint32_t index_of_self) {
-	(void) index_of_self;
-	if(Eng_debug_vis) {
-		struct GaneObject_FPS_Display* self = data;
-
-		char fps_string[64] = {0};
-		snprintf(fps_string, sizeof(fps_string), "FPS: %d", Eng_current_fps);
-		TTF_SetTextString(self->display, fps_string, sizeof(fps_string));
-
-		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-		TTF_DrawRendererText(self->display, self->pos.x, self->pos.y);
-	}
-	return ERR_PASS;
-}
-Error GameObject_fps_display_create(SDL_FPoint pos) {
-	struct GaneObject_FPS_Display self = {
-		.display = nullptr,
-		.pos     = pos,
-	};
-	ASSERT_PREDICATE_SDL(
-		(self.display =
-	         TTF_CreateText(Eng_text_engine, Eng_font, "hewo :3", 0)),
-		return ERR_FATAL;
-		,
-		CODE_SUCCESS "INFO: Successfully created TTF_Text object for "
-					 "GameObject fps_display" CODE_END,
-		CODE_ERROR "FATAL: Failed to create TTF_Text object for GameObject "
-				   "fps_display" CODE_END
-	);
-	struct GameObject_FPS_Display* new = NULL;
-	ASSERT_PREDICATE(
-		Eng_create_object(
-			&self, (void*) &new, sizeof(struct GaneObject_FPS_Display),
-			GAMEOBJECT_FPS_DISPLAY
-		),
-		return ERR_FATAL;
-		,
-		CODE_SUCCESS
-		"INFO: Successfully created GameObject fps_display" CODE_END,
-		CODE_ERROR "FATAL: Failed to create GameObject fps_display" CODE_END
-	);
-	ASSERT_PREDICATE(Eng_hook_update(GameObject_fps_display_update, new),
-	                 return ERR_FATAL;
-	                 ,
-	                 CODE_SUCCESS "INFO: Successfully hooked update callback "
-	                              "for GameObject fps_display" CODE_END,
-	                 CODE_ERROR "FATAL: Failed to hook update callback for "
-	                            "GameObject fps_display" CODE_END);
 	return ERR_PASS;
 }
 

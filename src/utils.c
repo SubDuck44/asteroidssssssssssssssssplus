@@ -350,8 +350,6 @@ void Cam_transform(
 ) {
 	SDL_FPoint screen_origin = Cam_world_to_screen(*world_pos, cam);
 
-	screen_origin = FPoint_scale(screen_origin, cam->zoom);
-
 	float dest_w = dest->w * cam->zoom;
 	float dest_h = dest->h * cam->zoom;
 

@@ -68,39 +68,39 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	double thrust_main = self->force_main_thruster * delta_time;
 	double thrust_rcs  = self->force_rcs_thrusters * delta_time;
 	double force_rot   = self->force_rot * Eng_get_deltatime_factor();
-	if(Eng_get_key_pressed(KEY_A)) self->ang_vel -= force_rot;
-	if(Eng_get_key_pressed(KEY_D)) self->ang_vel += force_rot;
-	if(Eng_get_key_pressed(KEY_W)) {
+	if(Eng_get_key_down(KEY_A)) self->ang_vel -= force_rot;
+	if(Eng_get_key_down(KEY_D)) self->ang_vel += force_rot;
+	if(Eng_get_key_down(KEY_W)) {
 		self->vel = Vec2f_add(Vec2f_force(thrust_main, self->rot), self->vel);
 	}
-	if(Eng_get_key_pressed(KEY_I))
+	if(Eng_get_key_down(KEY_I))
 		self->vel = Vec2f_add(Vec2f_force(thrust_rcs, self->rot), self->vel);
-	if(Eng_get_key_pressed(KEY_J))
+	if(Eng_get_key_down(KEY_J))
 		self->vel = Vec2f_add(
 			Vec2f_force(thrust_rcs, WRAP_COMPASS((int) self->rot - 90)),
 			self->vel
 		);
 
-	if(Eng_get_key_pressed(KEY_K))
+	if(Eng_get_key_down(KEY_K))
 		self->vel = Vec2f_add(
 			Vec2f_force(thrust_rcs, WRAP_COMPASS((int) self->rot + 180)),
 			self->vel
 		);
-	if(Eng_get_key_pressed(KEY_L))
+	if(Eng_get_key_down(KEY_L))
 		self->vel = Vec2f_add(
 			Vec2f_force(thrust_rcs, WRAP_COMPASS((int) self->rot + 90)),
 			self->vel
 		);
-	if(Eng_get_key_pressed(KEY_MOUSE_LEFT)) {
+	if(Eng_get_key_down(KEY_MOUSE_LEFT)) {
 		self->rot = FPoint_angle_to(
 			Cam_world_to_screen(self->pos, &Eng_std_camera), Eng_mouse_pos
 		);
 	}
-	if(Eng_get_key_pressed(KEY_1)) self->modules ^= (1 << PLAYERMODULE_SOLAR);
-	if(Eng_get_key_pressed(KEY_2) &&
+	if(Eng_get_key_down(KEY_1)) self->modules ^= (1 << PLAYERMODULE_SOLAR);
+	if(Eng_get_key_down(KEY_2) &&
 	   (self->modules ^ (1 << PLAYERMODULE_CLAW)) > self->modules)
 		self->modules ^= (1 << PLAYERMODULE_ANTENNA);
-	if(Eng_get_key_pressed(KEY_3) &&
+	if(Eng_get_key_down(KEY_3) &&
 	   (self->modules ^ (1 << PLAYERMODULE_ANTENNA)) > self->modules)
 		self->modules ^= (1 << PLAYERMODULE_CLAW);
 
@@ -168,7 +168,7 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	}
 
 	// Draw lateral movement guides
-	if(Eng_get_key_pressed(KEY_LALT)) {
+	if(Eng_get_key_down(KEY_LALT)) {
 		const SDL_FPoint bow =
 			FPoint_add(FPoint_force(75, self->rot), player_ctr);
 		const SDL_FPoint stern = FPoint_add(

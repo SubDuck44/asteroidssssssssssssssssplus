@@ -28,7 +28,7 @@
 // Control flow
 SDL_AppResult     Eng_init(void);
 [[noreturn]] void Eng_exit(void);
-SDL_AppResult     Eng_tick_input(SDL_Event* event);
+void              Eng_tick_input(SDL_Event* event);
 Error             Eng_tick_once(void);
 
 // Collision system
@@ -97,6 +97,8 @@ double Eng_get_deltatime_factor(void);
 	X(D)                                                                       \
 	X(LALT) X(I) X(J) X(K) X(L) X(MINUS) X(PLUS) X(F3) X(RETURN) X(1) X(2) X(3)
 
+enum KeyStates : uint8_t { KEY_DOWN, KEY_RELEASED, KEY_PRESSED };
+
 enum Keys : uint32_t {
 #define X(x) KEY_##x,
 	KEYS
@@ -106,10 +108,13 @@ enum Keys : uint32_t {
 	KEY_NUM,
 };
 
-#define Eng_get_key_pressed(key) Eng_key_cache[key]
+#define Eng_get_key_pressed(key) Eng_key_cache[key] & (1 << KEY_PRESSED)
+#define Eng_get_key_down(key) Eng_key_cache[key] & (1 << KEY_DOWN)
+#define Eng_get_key_released(key) Eng_key_cache[key] & (1 << KEY_RELEASED)
 
 extern bool       Eng_key_cache[KEY_NUM];
 extern SDL_FPoint Eng_mouse_pos;
+extern SDL_Event  Eng_input_event_buf;
 // KEY input handling END
 
 extern SDL_Point Eng_screensize;
@@ -178,6 +183,7 @@ const char EMB_IOSEVKA_FONT[] = {
 
 bool       Eng_key_cache[KEY_NUM] = {0};
 SDL_FPoint Eng_mouse_pos          = {0};
+SDL_Event* Eng_input_event_buf    = NULL;
 
 // KEY input handling END
 
@@ -372,7 +378,7 @@ Run all input capturing events, return value MUST be
 returned from SDL_AppEvent() SDL_Event* event: Pass
 SDL_Event* from SDL_AppEvent()
  */
-SDL_AppResult Eng_tick_input(SDL_Event* event) {
+void Eng_tick_input(SDL_Event* event) {
 	switch(event->type) {
 	case SDL_EVENT_MOUSE_MOTION:
 		Eng_mouse_pos = (SDL_FPoint) {event->motion.x, event->motion.y};
@@ -409,7 +415,9 @@ SDL_AppResult Eng_tick_input(SDL_Event* event) {
 
 #define X(x)                                                                   \
 	case SDLK_##x:                                                             \
-		Eng_key_cache[KEY_##x] = true;                                         \
+		Eng_key_cache[KEY_##x] ^= (1 << KEY_DOWN);                             \
+		Eng_key_cache[KEY_##x] &= ~(1 << KEY_RELEASED);                        \
+		Eng_key_cache[KEY_##x] &= (1 << KEY_PRESSED);                          \
 		break;
 			KEYS
 #undef X
@@ -420,7 +428,9 @@ SDL_AppResult Eng_tick_input(SDL_Event* event) {
 		switch(event->key.key) {
 #define X(x)                                                                   \
 	case SDLK_##x:                                                             \
-		Eng_key_cache[KEY_##x] = false;                                        \
+		Eng_key_cache[KEY_##x] ^= (1 << KEY_DOWN);                             \
+		Eng_key_cache[KEY_##x] &= ~(1 << KEY_PRESSED);                         \
+		Eng_key_cache[KEY_##x] &= (1 << KEY_RELEASED);                         \
 		break;
 			KEYS
 #undef X
@@ -437,9 +447,9 @@ SDL_AppResult Eng_tick_input(SDL_Event* event) {
 		Eng_exit();
 	}
 
-	if(Eng_get_key_pressed(KEY_F3)) Eng_debug_vis = !Eng_debug_vis;
+	if(Eng_get_key_down(KEY_F3)) Eng_debug_vis = !Eng_debug_vis;
 
-	return SDL_APP_CONTINUE;
+	return ERR_PASS;
 }
 
 /*
@@ -449,16 +459,20 @@ Error Eng_tick_once(void) {
 	// Start frame timer
 	const uint64_t frametime_start = SDL_GetTicksNS();
 
+	for(uint16_t i = 0; i < KEY_NUM; i++) {}
+
+	Eng_tick_input(&Eng_input_event_buf);
+
 	// Grey background
 	SDL_SetRenderDrawColor(renderer, 39, 36, 43, 255);
 	SDL_RenderClear(renderer);
 
-	if(Eng_get_key_pressed(KEY_MINUS)) {
+	if(Eng_get_key_down(KEY_MINUS)) {
 		Eng_std_camera.zoom_factor =
 			clamp(INT8_MIN, INT8_MAX, Eng_std_camera.zoom_factor - 1);
 		Eng_std_camera.zoom = 1 * pow(1.1, Eng_std_camera.zoom_factor);
 	}
-	if(Eng_get_key_pressed(KEY_PLUS)) {
+	if(Eng_get_key_down(KEY_PLUS)) {
 		Eng_std_camera.zoom_factor =
 			clamp(INT8_MIN, INT8_MAX, Eng_std_camera.zoom_factor + 1);
 		Eng_std_camera.zoom = 1 * pow(1.1, Eng_std_camera.zoom_factor);

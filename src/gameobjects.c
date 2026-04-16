@@ -136,10 +136,12 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 
 	// Draw velocity vector
 	Vector2l prog_world_pos = Vec2l_add_Vec2f(
-		self->pos, Vec2f_scale(self->vel, 10 * Eng_std_camera.zoom)
+		self->pos,
+		Vec2f_scale(self->vel, 10 * Eng_std_camera.zoom * DEFAULT_FIXED_POINT)
 	);
 	Vector2l retro_world_pos = Vec2l_add_Vec2f(
-		self->pos, Vec2f_scale(self->vel, -10 * Eng_std_camera.zoom)
+		self->pos,
+		Vec2f_scale(self->vel, -10 * Eng_std_camera.zoom * DEFAULT_FIXED_POINT)
 	);
 	SDL_FPoint prog_pos     = {0};
 	SDL_FPoint retro_pos    = {0};

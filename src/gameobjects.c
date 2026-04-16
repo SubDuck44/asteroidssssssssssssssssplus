@@ -207,8 +207,8 @@ Error GameObject_player_create(void) {
 	ASSERT_PREDICATE(
 		failed == ERR_PASS, return ERR_FATAL;
 		,
-		CODE_SUCCESS
-		"INFO: Successfully registered hitbox for GameObject player" CODE_END,
+		CODE_SUCCESS "INFO: Successfully registered hitbox for GameObject "
+					 "player" CODE_END,
 		CODE_ERROR
 		"FATAL: Failed to register hitbox for GameObject player" CODE_END
 	);
@@ -226,8 +226,8 @@ Error GameObject_player_create(void) {
 		,
 		CODE_SUCCESS "INFO: Successfully hooked update callback for GameObject "
 					 "player" CODE_END,
-		CODE_ERROR
-		"FATAL: Failed to hook update callback for GameObject player" CODE_END
+		CODE_ERROR "FATAL: Failed to hook update callback for GameObject "
+				   "player" CODE_END
 	);
 	return ERR_PASS;
 }
@@ -253,8 +253,8 @@ Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
 	ASSERT_PREDICATE(
 		failed, return ERR_FATAL;
 		,
-		CODE_SUCCESS
-		"INFO: Successfully registered hitbox for GameObject asteroid" CODE_END,
+		CODE_SUCCESS "INFO: Successfully registered hitbox for GameObject "
+					 "asteroid" CODE_END,
 		CODE_ERROR
 		"FATAL: Failed to register hitbox for GameObject asteroid" CODE_END
 	);
@@ -274,8 +274,8 @@ Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
 		,
 		CODE_SUCCESS "INFO: Successfully hooked update callback for GameObject "
 					 "asteroid" CODE_END,
-		CODE_ERROR
-		"FATAL: Failed to hook update callback for GameObject asteroid" CODE_END
+		CODE_ERROR "FATAL: Failed to hook update callback for GameObject "
+				   "asteroid" CODE_END
 	);
 	return ERR_PASS;
 }

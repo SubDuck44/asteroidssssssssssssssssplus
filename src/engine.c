@@ -336,7 +336,8 @@ SDL_AppResult Eng_init(void) {
 	Eng_std_debug_menu =
 		(DebugMenu) {.display = NULL, .pos = (SDL_FPoint) {20.0f, 20.0f}};
 	ASSERT_PREDICATE(
-		TTF_CreateText(Eng_text_engine, Eng_font, "hewo :3", 0),
+		(Eng_std_debug_menu.display =
+	         TTF_CreateText(Eng_text_engine, Eng_font, "hewo :3", 0)),
 		fatal_error = true;
 		, CODE_SUCCESS "INFO: Successfully initialized DebugMenu" CODE_END,
 		CODE_ERROR "FATAL: Failed to initialize DebugMenu" CODE_END

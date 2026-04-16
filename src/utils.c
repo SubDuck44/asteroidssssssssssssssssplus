@@ -10,9 +10,7 @@
 #define RAD2DEG (180 / M_PI)
 #define DEG2RAD (1 / RAD2DEG)
 
-// Errors
-#define ERR_FATAL false
-#define ERR_PASS true
+// Terminal control codes
 #define CODE_ERROR "[1;31m"
 #define CODE_WARN "[1;33m"
 #define CODE_SUCCESS "[1;32m"

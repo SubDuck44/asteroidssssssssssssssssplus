@@ -15,6 +15,7 @@ enum GameObject_Types : uint32_t {
 	GAMEOBJECT_PLAYER,
 	GAMEOBJECT_ASTEROID,
 	GAMEOBJECT_FPS_DISPLAY,
+	GAMEOBJECT_GAMEOVERLAY,
 	GAMEOBJECT_NUM
 };
 
@@ -49,6 +50,12 @@ struct GameObject_Asteroid {
 };
 Error GameObject_asteroid_create(struct GameObject_Asteroid* override);
 Error GameObject_asteroid_update(void* data, uint32_t index_of_self);
+
+struct GameObject_GameOverlay {
+	TTF_Text* toast;
+};
+Error GameObject_gameoverlay_create(void);
+Error GameObject_gameoverlay_update(void* data, uint32_t index_of_self);
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
@@ -116,8 +123,7 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 		&self->pos, &player_ctr, &player_rect, &player_origin, &Eng_std_camera
 	);
 
-	if(Eng_update_hitbox(self->hitbox, &self->pos, NULL) == ERR_FATAL)
-		return ERR_FATAL;
+	if(Eng_update_hitbox(self->hitbox, &self->pos, NULL) == false) return false;
 
 	// Draw player
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
@@ -239,7 +245,7 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 		);
 	}
 
-	return ERR_PASS;
+	return true;
 }
 
 Error GameObject_player_create(void) {
@@ -260,7 +266,7 @@ Error GameObject_player_create(void) {
         &Eng_std_collision_tree
     );
 	ASSERT_PREDICATE(
-		failed == ERR_PASS, return ERR_FATAL;
+		failed == true, return false;
 		,
 		CODE_SUCCESS "INFO: Successfully registered hitbox for GameObject "
 					 "player" CODE_END,
@@ -272,19 +278,19 @@ Error GameObject_player_create(void) {
 			&self, (void*) &new, sizeof(struct GameObject_Player),
 			GAMEOBJECT_PLAYER
 		),
-		return ERR_FATAL;
+		return false;
 		, CODE_SUCCESS "INFO: Successfully created GameObject: player" CODE_END,
 		CODE_ERROR "FATAL: Failed to create GameObject player" CODE_END
 	);
 	ASSERT_PREDICATE(
-		Eng_hook_update(GameObject_player_update, new), return ERR_FATAL;
+		Eng_hook_update(GameObject_player_update, new), return false;
 		,
 		CODE_SUCCESS "INFO: Successfully hooked update callback for GameObject "
 					 "player" CODE_END,
 		CODE_ERROR "FATAL: Failed to hook update callback for GameObject "
 				   "player" CODE_END
 	);
-	return ERR_PASS;
+	return true;
 }
 
 Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
@@ -306,7 +312,7 @@ Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
         &Eng_std_collision_tree
     );
 	ASSERT_PREDICATE(
-		failed, return ERR_FATAL;
+		failed, return false;
 		,
 		CODE_SUCCESS "INFO: Successfully registered hitbox for GameObject "
 					 "asteroid" CODE_END,
@@ -317,7 +323,7 @@ Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
 						 (override) ? override : &self, (void*) &new,
 						 sizeof(struct GameObject_Asteroid), GAMEOBJECT_ASTEROID
 					 ),
-	                 return ERR_FATAL;
+	                 return false;
 	                 ,
 	                 CODE_SUCCESS
 	                 "INFO: Successfully created GameObject asteroid" CODE_END,
@@ -325,14 +331,14 @@ Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
 	                 "FATAL: Failed to create GameObject player" CODE_END);
 
 	ASSERT_PREDICATE(
-		Eng_hook_update(GameObject_asteroid_update, new), return ERR_FATAL;
+		Eng_hook_update(GameObject_asteroid_update, new), return false;
 		,
 		CODE_SUCCESS "INFO: Successfully hooked update callback for GameObject "
 					 "asteroid" CODE_END,
 		CODE_ERROR "FATAL: Failed to hook update callback for GameObject "
 				   "asteroid" CODE_END
 	);
-	return ERR_PASS;
+	return true;
 }
 
 Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
@@ -375,7 +381,85 @@ Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
 		SDL_FLIP_NONE
 	);
 
-	return ERR_PASS;
+	return true;
+}
+
+Error GameObject_gameoverlay_create(void) {
+	struct GameObject_GameOverlay data = {
+		.toast = NULL,
+	};
+
+	struct GameObject_GameOverlay* new = NULL;
+
+	ASSERT_PREDICATE((data.toast =
+	                      TTF_CreateText(Eng_text_engine, Eng_font, "none", 0)),
+	                 return false;
+	                 ,
+	                 CODE_SUCCESS "INFO: Successfully created text object for "
+	                              "GameObject_GameOverlay" CODE_END,
+	                 CODE_ERROR "FATAL: Failed to create text object for "
+	                            "GameObject_GameOverlay" CODE_END);
+
+	TTF_SetTextWrapWidth(data.toast, 160);
+
+	ASSERT_PREDICATE(
+		Eng_create_object(
+			&data, (void**) &new, sizeof(Toast), GAMEOBJECT_GAMEOVERLAY
+		),
+		TTF_DestroyText(data.toast);
+		return false;
+		,
+		CODE_SUCCESS
+		"INFO: Successfully created GameObject gameoverlay" CODE_END,
+		CODE_ERROR "FATAL: Failed to create GameObject game overlay" CODE_END
+	);
+
+	return true;
+}
+
+Error GameObject_gameoverlay_update(void* data, uint32_t index_of_self) {
+	(void) index_of_self;
+	struct GameObject_GameOverlay* self = data;
+
+	if(Eng_toast_queue.len > 0) {
+		const float width   = 200;
+		const float height  = 100;
+		SDL_FRect   draw_at = {
+            ((float) Eng_std_camera.screensize.x / 2) - (width / 2), 20, width,
+            height
+        };
+
+		for(size_t i = 0; i < Eng_toast_queue.len; i++) {
+			SDL_Color color;
+			switch(Eng_toast_queue.arr[i].type) {
+			case TOAST_WARN:
+				color = (SDL_Color) {250, 189, 47, 255};
+				break;
+			case TOAST_CRITICAL:
+				color = (SDL_Color) {204, 36, 29, 255};
+				break;
+			default:
+				color = (SDL_Color) {69, 133, 136, 255};
+				break;
+			}
+			SDL_SetRenderDrawColor(
+				renderer, color.r, color.g, color.b, color.a
+			);
+			SDL_RenderFillRect(renderer, &draw_at);
+			TTF_SetTextString(
+				self->toast, Eng_toast_queue.arr[i].content, Eng_toast_queue.len
+			);
+			TTF_SetFontWrapAlignment(Eng_font, TTF_HORIZONTAL_ALIGN_CENTER);
+			TTF_DrawRendererText(self->toast, draw_at.x + 20, draw_at.y + 20);
+			draw_at.y += height + 20;
+
+			if(Eng_toast_queue.arr[i].timestamp + 5000 < SDL_GetTicks()) {
+				Eng_pop_toast(NULL);
+			}
+		}
+	}
+
+	return true;
 }
 
 #endif

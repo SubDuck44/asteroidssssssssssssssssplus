@@ -43,21 +43,21 @@ DebugRepl Repl_repl = {0};
 Error Repl_init(void) {
 	Repl_repl.thread = SDL_CreateThread(Repl_run, "DebugRepl", &Repl_repl);
 	ASSERT_PREDICATE_SDL(
-		Repl_repl.thread, return ERR_FATAL;
+		Repl_repl.thread, return false;
 		,
 		CODE_SUCCESS "INFO: Successfully forked thread for DebugRepl" CODE_END,
 		CODE_ERROR "FATAL: Failed to fork thread for DebugRepl" CODE_END
 	);
 	Repl_repl.semaphore = SDL_CreateSemaphore(0);
 	ASSERT_PREDICATE_SDL(
-		Repl_repl.semaphore, return ERR_FATAL;
+		Repl_repl.semaphore, return false;
 		,
 		CODE_SUCCESS
 		"INFO: Successfully created semaphore for DebugRepl" CODE_END,
 		CODE_ERROR "FATAL: Failed to create semaphore for DebugRepl" CODE_END
 	);
 
-	return ERR_PASS;
+	return true;
 }
 
 static char* try_get_arg(uint16_t index, char** arg_buf, uint16_t arg_buf_len) {

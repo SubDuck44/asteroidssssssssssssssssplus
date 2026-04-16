@@ -20,6 +20,7 @@
 #define DEFAULT_FPS_TEXTBUFFER_SIZE 64
 #define DEFAULT_FONTSIZE 12.0f
 #define DEFAULT_COLTREE_SIZE 16
+#define DEFAULT_TOASTQUEUE_SIZE 8
 
 #include <SDL3_ttf/SDL_ttf.h>
 
@@ -87,7 +88,27 @@ Error Eng_unhook_update(void* data);
 void* Eng_get_gameobject(uint32_t type, int32_t index);
 
 // Misc
+enum ToastTypes : uint8_t {
+	TOAST_NORM,
+	TOAST_WARN,
+	TOAST_CRITICAL,
+};
+typedef struct {
+	char*    content;
+	size_t   len;
+	uint8_t  type;
+	uint64_t timestamp;
+} Toast;
+typedef struct {
+	Toast* arr;
+	size_t len;
+	size_t cap;
+} ToastArray;
+// -----------------------------------------------------------------------------
 double Eng_get_deltatime_factor(void);
+Error  Eng_push_toast(char* message, size_t len, uint8_t type);
+Error  Eng_pop_toast(Toast* dest);
+Error  Eng_init_toast_queue(void);
 
 // KEY input handling BEGIN
 #define KEYS                                                                   \
@@ -137,6 +158,8 @@ extern SDL_Renderer* renderer;
 
 extern Camera Eng_std_camera;
 
+extern ToastArray Eng_toast_queue;
+
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
 #include <inttypes.h>
@@ -177,6 +200,8 @@ SDL_Window*   window;
 SDL_Renderer* renderer;
 
 Camera Eng_std_camera;
+
+ToastArray Eng_toast_queue;
 
 const char EMB_IOSEVKA_FONT[] = {
 #embed "../res/Iosevka-Regular.ttf"
@@ -355,6 +380,18 @@ Error Eng_init(void) {
 		CODE_ERROR "FATAL: Failed to initialize DebugMenu" CODE_END
 	);
 
+	// Try setup toast queue
+	Eng_toast_queue.arr = calloc(DEFAULT_TOASTQUEUE_SIZE, sizeof(Toast));
+	Eng_toast_queue.cap = DEFAULT_TOASTQUEUE_SIZE;
+	Eng_toast_queue.len = 0;
+	ASSERT_PREDICATE(
+		Eng_toast_queue.arr, fatal_error = true;
+		,
+		CODE_SUCCESS
+		"INFO: Successfully allocated memory for toast queue" CODE_END,
+		CODE_ERROR "FATAL: Failed to allocate memory for toast queue" CODE_END
+	);
+
 	// Arbitrary initializations
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 	Eng_std_camera = (Camera) {(Vector2l) {0, 0}, 1.0f, 1, Eng_screensize};
@@ -366,7 +403,7 @@ Error Eng_init(void) {
 	                 CODE_ERROR "FATAL: Caught one or more fatal "
 	                            "exceptions, aborting…" CODE_END);
 	SDL_Log("INFO: Welcome to " APPLICATION_TITLE "!");
-	return ERR_PASS;
+	return true;
 }
 
 /* Runs at the end of the program. */
@@ -451,7 +488,7 @@ Error Eng_input_update(SDL_Event* event) {
 
 	if(Eng_get_key_down(KEY_F3)) Eng_debug_vis = !Eng_debug_vis;
 
-	return ERR_PASS;
+	return true;
 }
 
 void Eng_input_deferred(void) {
@@ -498,8 +535,8 @@ Error Eng_update_frame(void) {
 	}
 
 	for(uint32_t i = 0; i < update_callbacks_len; i++) {
-		if(update_callbacks[i].func(update_callbacks[i].argv, i) == ERR_FATAL) {
-			return ERR_FATAL;
+		if(update_callbacks[i].func(update_callbacks[i].argv, i) == false) {
+			return false;
 		}
 	}
 
@@ -530,7 +567,7 @@ Error Eng_update_frame(void) {
 		case COMMAND_SPAWN_ASTEROID:
 			SDL_Log("INFO: Spawning asteroid above camera target");
 			ASSERT_PREDICATE(
-				GameObject_asteroid_create(NULL), return ERR_FATAL;
+				GameObject_asteroid_create(NULL), return false;
 				,
 				CODE_SUCCESS
 				"INFO: Successfully created GameObject asteroid" CODE_END,
@@ -543,7 +580,7 @@ Error Eng_update_frame(void) {
 	// Clear bitflags on input key_cache
 	Eng_input_deferred();
 
-	return ERR_PASS;
+	return true;
 }
 
 // Collision system ============================================================
@@ -551,7 +588,7 @@ Error Eng_update_frame(void) {
 Error Eng_init_coltree(ColTree* dest) {
 	dest->arr = calloc(DEFAULT_COLTREE_SIZE, sizeof(ColRect));
 	ASSERT_PREDICATE(
-		dest->arr, return ERR_FATAL;
+		dest->arr, return false;
 		,
 		CODE_SUCCESS
 		"INFO: Successfully allocated memory for collision tree" CODE_END,
@@ -561,7 +598,7 @@ Error Eng_init_coltree(ColTree* dest) {
 	dest->cap = DEFAULT_COLTREE_SIZE;
 	dest->len = 0;
 
-	return ERR_PASS;
+	return true;
 }
 
 Error Eng_register_hitbox(
@@ -575,7 +612,7 @@ Error Eng_register_hitbox(
 	if(in->len + 1 > in->cap) {
 		ColRect* tmp = reallocarray(in->arr, in->cap * 2, sizeof(*in->arr));
 		ASSERT_PREDICATE(
-			tmp, return ERR_FATAL;
+			tmp, return false;
 			, CODE_SUCCESS "INFO: Successfully expanded ColTree" CODE_END,
 			CODE_ERROR "FATAL: Failed to expand Coltree" CODE_END
 		);
@@ -585,7 +622,7 @@ Error Eng_register_hitbox(
 	*dest            = &in->arr[in->len];
 	in->len++;
 
-	return ERR_PASS;
+	return true;
 }
 
 Error Eng_unregister_hitbox(ColRect* target, ColTree* in) {
@@ -599,7 +636,7 @@ Error Eng_unregister_hitbox(ColRect* target, ColTree* in) {
 				ColRect* tmp =
 					reallocarray(in->arr, in->cap >> 1, sizeof(*in->arr));
 				ASSERT_PREDICATE(
-					tmp, return ERR_FATAL;
+					tmp, return false;
 					, CODE_SUCCESS "INFO: Successfully shrunk ColTree" CODE_END,
 					CODE_ERROR "FATAL: Failed to shrink ColTree" CODE_END
 				);
@@ -615,7 +652,7 @@ Error Eng_unregister_hitbox(ColRect* target, ColTree* in) {
 		(void*) target, (void*) in
 	);
 
-	return ERR_PASS;
+	return true;
 }
 
 Error Eng_update_hitbox(ColRect* target, Vector2l* pos, Vector2f* size) {
@@ -632,7 +669,7 @@ Error Eng_update_hitbox(ColRect* target, Vector2l* pos, Vector2f* size) {
 		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
 		SDL_RenderRect(renderer, &dest);
 	}
-	return ERR_PASS;
+	return true;
 }
 
 ColInfo Eng_get_collision(ColRect* target, ColTree* in) {
@@ -657,7 +694,7 @@ ColInfo Eng_get_collision(ColRect* target, ColTree* in) {
 // Debug stuff =================================================================
 void update_debug_menu(DebugMenu* data) {
 	if(Eng_debug_vis) {
-		char                      fps_string[128] = {0};
+		char                      fps_string[256] = {0};
 		struct GameObject_Player* player =
 			Eng_get_gameobject(GAMEOBJECT_PLAYER, 0);
 		snprintf(
@@ -696,7 +733,7 @@ Error Eng_create_object(
 					   "data: %p" CODE_END,
 			type, src
 		);
-		return ERR_PASS;
+		return true;
 	}
 
 	if(game_objects_len + 1 > game_objects_cap) {
@@ -711,7 +748,7 @@ Error Eng_create_object(
 						   "%d to %d" CODE_END,
 				game_objects_cap, game_objects_cap * 2
 			);
-			return ERR_FATAL;
+			return false;
 		}
 		game_objects = tmp;
 		game_objects_cap *= 2;
@@ -725,14 +762,14 @@ Error Eng_create_object(
 					   "type %d" CODE_END,
 			type
 		);
-		return ERR_FATAL;
+		return false;
 	}
 
 	memcpy(data, src, data_size);
 	game_objects[game_objects_len] = (GameObject) {type, data};
 	*new_ref                       = data;
 	game_objects_len++;
-	return ERR_PASS;
+	return true;
 }
 
 /*
@@ -748,7 +785,7 @@ Error Eng_destroy_object(uint32_t target) {
 					   "range" CODE_END,
 			target
 		);
-		return ERR_PASS;
+		return true;
 	}
 
 	if(!game_objects[target].data) {
@@ -757,7 +794,7 @@ Error Eng_destroy_object(uint32_t target) {
 					   "null data" CODE_END,
 			target
 		);
-		return ERR_PASS;
+		return true;
 	}
 	free(game_objects[target].data);
 
@@ -765,7 +802,7 @@ Error Eng_destroy_object(uint32_t target) {
 		game_objects[target] = game_objects[game_objects_len - 1];
 	}
 	game_objects_len--;
-	return ERR_PASS;
+	return true;
 }
 
 /*
@@ -781,7 +818,7 @@ Error Eng_hook_update(Method func, void* data) {
 					   "callback with null "
 					   "function pointer" CODE_END
 		);
-		return ERR_PASS;
+		return true;
 	}
 
 	if(update_callbacks_len + 1 > update_callbacks_cap) {
@@ -796,7 +833,7 @@ Error Eng_hook_update(Method func, void* data) {
 						   "from %d to %d" CODE_END,
 				update_callbacks_cap, update_callbacks_cap * 2
 			);
-			return ERR_FATAL;
+			return false;
 		}
 		update_callbacks = tmp;
 		update_callbacks_cap *= 2;
@@ -804,7 +841,7 @@ Error Eng_hook_update(Method func, void* data) {
 
 	update_callbacks[update_callbacks_len] = (UpdateHook) {func, data};
 	update_callbacks_len++;
-	return ERR_PASS;
+	return true;
 }
 
 /*
@@ -818,7 +855,7 @@ Error Eng_unhook_update(void* data) {
 			CODE_ERROR "ERROR: Tried to unhook null "
 					   "Update callback" CODE_END
 		);
-		return ERR_PASS;
+		return true;
 	}
 
 	for(uint32_t i = 0; i < update_callbacks_len; i++) {
@@ -842,13 +879,13 @@ Error Eng_unhook_update(void* data) {
 								   "shrinking from %d to %d" CODE_END,
 						update_callbacks_cap, update_callbacks_cap >> 1
 					);
-					return ERR_FATAL;
+					return false;
 				}
 
 				update_callbacks     = tmp;
 				update_callbacks_cap = update_callbacks_cap >> 1;
 			}
-			return ERR_PASS;
+			return true;
 		}
 	}
 	SDL_Log(
@@ -856,7 +893,7 @@ Error Eng_unhook_update(void* data) {
 				   "callback: %p" CODE_END,
 		data
 	);
-	return ERR_PASS;
+	return true;
 }
 
 void* Eng_get_gameobject(uint32_t type, int32_t index) {
@@ -878,6 +915,60 @@ void* Eng_get_gameobject(uint32_t type, int32_t index) {
 
 double Eng_get_deltatime_factor(void) {
 	return last_frame_time / ((double) 1'000'000'000 / Eng_desired_fps);
+}
+
+Error Eng_push_toast(char* message, size_t len, uint8_t type) {
+	if(Eng_toast_queue.len + 1 > Eng_toast_queue.cap) {
+		Toast* tmp = reallocarray(
+			Eng_toast_queue.arr, Eng_toast_queue.cap * 2, sizeof(Toast)
+		);
+		ASSERT_PREDICATE(
+			tmp, return false;
+			, CODE_SUCCESS "INFO: Successfully expanded toast queue" CODE_END,
+			CODE_ERROR "FATAL: Failed to expand toast queue" CODE_END
+		);
+		Eng_toast_queue.arr = tmp;
+		Eng_toast_queue.cap *= 2;
+	}
+
+	const size_t length = mini((len) ? len : strlen(message) + 1, 128);
+
+	Eng_toast_queue.arr[Eng_toast_queue.len] = (Toast) {
+		.content = strncpy(
+			Eng_toast_queue.arr[Eng_toast_queue.len].content, message, length
+		),
+		.len       = (length) ? length : strlen(message),
+		.type      = type,
+		.timestamp = SDL_GetTicks(),
+	};
+	Eng_toast_queue.arr[Eng_toast_queue.len].content[127] = '\0';
+	Eng_toast_queue.len++;
+
+	return true;
+}
+
+Error Eng_pop_toast(Toast* dest) {
+	if(dest) *dest = Eng_toast_queue.arr[0];
+
+	for(size_t i = 0; i < Eng_toast_queue.len - 1; i++) {
+		Eng_toast_queue.arr[i] = Eng_toast_queue.arr[i - 1];
+	}
+
+	Eng_toast_queue.len--;
+
+	if(Eng_toast_queue.len <= Eng_toast_queue.cap / 2) {
+		Toast* tmp = reallocarray(
+			Eng_toast_queue.arr, Eng_toast_queue.cap / 2, sizeof(Toast)
+		);
+		ASSERT_PREDICATE(
+			tmp, return false;
+			, CODE_SUCCESS "INFO: Successfully shrunk toast queue" CODE_END,
+			CODE_ERROR "FATAL: Failed to shrink toast queue" CODE_END
+		);
+		Eng_toast_queue.cap /= 2;
+	}
+
+	return true;
 }
 
 #endif

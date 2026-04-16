@@ -573,7 +573,6 @@ Error Eng_unregister_hitbox(ColRect* target, ColTree* in) {
 			break;
 		}
 	}
-
 	SDL_Log(
 		CODE_WARN
 		"WARNING: Could not find target ColRect %p in ColTree %p" CODE_END,
@@ -622,14 +621,17 @@ ColInfo Eng_get_collision(ColRect* target, ColTree* in) {
 // Debug stuff =================================================================
 void update_debug_menu(DebugMenu* data) {
 	if(Eng_debug_vis) {
-		char fps_string[128] = {0};
+		char                      fps_string[128] = {0};
+		struct GameObject_Player* player =
+			Eng_get_gameobject(GAMEOBJECT_PLAYER, 0);
 		snprintf(
 			fps_string, sizeof(fps_string),
 			"FPS: %d\nCam Pos: %" PRId64 " %" PRId64
-			"\nGameObjects loaded: %d, Updates scheduled: %d",
+			"\nGameObjects loaded: %d, Updates scheduled: %d\nPlayer modules: "
+			"%b",
 			Eng_current_fps, Eng_std_camera.target.x / DEFAULT_FIXED_POINT,
 			Eng_std_camera.target.y / DEFAULT_FIXED_POINT, game_objects_len,
-			update_callbacks_len
+			update_callbacks_len, (player) ? player->modules : 0
 		);
 		TTF_SetTextString(data->display, fps_string, sizeof(fps_string));
 

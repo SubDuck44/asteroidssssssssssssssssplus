@@ -21,25 +21,25 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 - Slight inaccuracies in thruster output
 - Spawning and simulating asteroids
 - Debug repl
+- (Basic) collisions
 ** In Progress
+- Revamped player sprites
+- Thruster sprites
+- SFX for common sounds (thrusters, collision, mining)
+- Basic ambience streaming
 ** Far roadmap
 *** Engine
-- Groundwork for persistent data serialization
-- Serializing chunk data to savefiles
-- Loading in chunks
-- Collision in chunks
+- (De-)Serializing data to savefiles
+- Faster collisions
 - Multithreading (for independent rendering/physics)
 *** Shaders
 - Shader support
 - Parallax backgrounds (stars, rocks)
 *** UI
-- Thruster sprites
 - Animated panels (curve controllers)
 - (?) Touchscreen support (for alia)
 - (?) In-game debug console
 *** Audio
-- Basic ambience streaming
-- SFX for common sounds (thrusters, collision, mining)
 - (?) In-game music player with custom music imports
 
 * Special thanks

@@ -84,6 +84,7 @@ Error Eng_create_object(
 Error Eng_destroy_object(uint32_t target);
 Error Eng_hook_update(Method func, void* data);
 Error Eng_unhook_update(void* data);
+void* Eng_get_gameobject(uint32_t type, int32_t index);
 
 // Misc
 double Eng_get_deltatime_factor(void);
@@ -815,6 +816,21 @@ Error Eng_unhook_update(void* data) {
 		data
 	);
 	return ERR_PASS;
+}
+
+void* Eng_get_gameobject(uint32_t type, int32_t index) {
+	for(uint32_t i = 0; i < game_objects_len; i++) {
+		if(game_objects[i].type == type) {
+			index--;
+			if(index < 0) return game_objects[i].data;
+		}
+	}
+	SDL_Log(
+		CODE_WARN
+		"ERROR: Failed to find component of type %u at index %u" CODE_END,
+		type, index
+	);
+	return NULL;
 }
 
 // Misc

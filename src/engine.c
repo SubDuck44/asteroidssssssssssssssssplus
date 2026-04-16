@@ -620,8 +620,12 @@ void update_debug_menu(DebugMenu* data) {
 	if(Eng_debug_vis) {
 		char fps_string[128] = {0};
 		snprintf(
-			fps_string, sizeof(fps_string), "FPS: %d\nCam Pos: %",
-			Eng_current_fps
+			fps_string, sizeof(fps_string),
+			"FPS: %d\nCam Pos: %" PRId64 " %" PRId64
+			"\nGameObjects loaded: %d, Updates scheduled: %d",
+			Eng_current_fps, Eng_std_camera.target.x / DEFAULT_FIXED_POINT,
+			Eng_std_camera.target.y / DEFAULT_FIXED_POINT, game_objects_len,
+			update_callbacks_len
 		);
 		TTF_SetTextString(data->display, fps_string, sizeof(fps_string));
 

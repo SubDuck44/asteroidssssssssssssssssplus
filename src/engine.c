@@ -450,7 +450,7 @@ Error Eng_tick_once(void) {
 	const uint64_t frametime_start = SDL_GetTicksNS();
 
 	// Grey background
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+	SDL_SetRenderDrawColor(renderer, 39, 36, 43, 255);
 	SDL_RenderClear(renderer);
 
 	if(Eng_get_key_pressed(KEY_MINUS)) {

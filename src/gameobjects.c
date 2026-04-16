@@ -126,6 +126,47 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 		SDL_FLIP_NONE
 	);
 
+	// Draw player modules
+	if(self->modules & (1 << PLAYERMODULE_SOLAR)) {
+		SDL_FRect solar_dest = {
+			player_rect.x - player_rect.w, player_rect.y, player_rect.w * 3,
+			player_rect.h
+		};
+		SDL_FPoint solar_origin = {
+			player_origin.x + player_rect.w, player_origin.y
+		};
+		SDL_RenderTextureRotated(
+			renderer, TEX_SOLAR_PANELS.tex, NULL, &solar_dest, self->rot,
+			&solar_origin, SDL_FLIP_NONE
+		);
+	}
+	if(self->modules & (1 << PLAYERMODULE_ANTENNA)) {
+		SDL_FRect antenna_dest = {
+			player_rect.x, player_rect.y - player_rect.h, player_rect.w,
+			player_rect.h * 2
+		};
+		SDL_FPoint antenna_origin = {
+			player_origin.x, player_origin.y + player_rect.h
+		};
+		SDL_RenderTextureRotated(
+			renderer, TEX_ANTENNA.tex, NULL, &antenna_dest, self->rot,
+			&antenna_origin, SDL_FLIP_NONE
+		);
+	}
+	if(self->modules & (1 << PLAYERMODULE_CLAW)) {
+		SDL_FRect claw_dest = {
+			player_rect.x, player_rect.y - player_rect.h, player_rect.w,
+			player_rect.h * 2
+		};
+		SDL_FPoint claw_origin = {
+			player_origin.x, player_origin.y + player_rect.h
+		};
+		SDL_RenderTextureRotated(
+			renderer, TEX_CLAW.tex, NULL, &claw_dest, self->rot, &claw_origin,
+			SDL_FLIP_NONE
+		);
+	}
+
 	// Draw lateral movement guides
 	if(Eng_get_key_pressed(KEY_LALT)) {
 		const SDL_FPoint bow =
@@ -211,7 +252,7 @@ Error GameObject_player_create(void) {
 		.force_rot           = 0.2,
 		.force_main_thruster = 0.25,
 		.force_rcs_thrusters = 0.1,
-		.modules             = 0
+		.modules             = 3
 	};
 	struct GameObject_Player* new = NULL;
 	Error failed                  = Eng_register_hitbox(

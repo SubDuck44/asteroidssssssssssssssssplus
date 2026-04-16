@@ -149,40 +149,54 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	}
 
 	// Draw velocity vector
-	Vector2l prog_world_pos = Vec2l_add_Vec2f(
-		self->pos,
-		Vec2f_scale(self->vel, 10 * Eng_std_camera.zoom * DEFAULT_FIXED_POINT)
-	);
-	Vector2l retro_world_pos = Vec2l_add_Vec2f(
-		self->pos,
-		Vec2f_scale(self->vel, -10 * Eng_std_camera.zoom * DEFAULT_FIXED_POINT)
-	);
-	SDL_FPoint prog_pos     = {0};
-	SDL_FPoint retro_pos    = {0};
-	SDL_FRect  prog_dest    = {0, 0, 25, 25};
-	SDL_FRect  retro_dest   = {0, 0, 25, 25};
-	SDL_FPoint prog_origin  = {12.5, 12.5};
-	SDL_FPoint retro_origin = {12.5, 12.5};
+	float vector_strength = Vec2f_length(self->vel);
+	if(vector_strength > 2) {
+		Vector2l prog_world_pos = Vec2l_add_Vec2f(
+			self->pos,
+			Vec2f_scale(
+				self->vel, 10 * Eng_std_camera.zoom * DEFAULT_FIXED_POINT
+			)
+		);
+		Vector2l retro_world_pos = Vec2l_add_Vec2f(
+			self->pos,
+			Vec2f_scale(
+				self->vel, -10 * Eng_std_camera.zoom * DEFAULT_FIXED_POINT
+			)
+		);
+		SDL_FPoint prog_pos     = {0};
+		SDL_FPoint retro_pos    = {0};
+		SDL_FRect  prog_dest    = {0, 0, 25, 25};
+		SDL_FRect  retro_dest   = {0, 0, 25, 25};
+		SDL_FPoint prog_origin  = {12.5, 12.5};
+		SDL_FPoint retro_origin = {12.5, 12.5};
 
-	Cam_transform(
-		&prog_world_pos, &prog_pos, &prog_dest, &prog_origin, &Eng_std_camera
-	);
-	Cam_transform(
-		&retro_world_pos, &retro_pos, &retro_dest, &retro_origin,
-		&Eng_std_camera
-	);
+		Cam_transform(
+			&prog_world_pos, &prog_pos, &prog_dest, &prog_origin,
+			&Eng_std_camera
+		);
+		Cam_transform(
+			&retro_world_pos, &retro_pos, &retro_dest, &retro_origin,
+			&Eng_std_camera
+		);
 
-	SDL_RenderTexture(renderer, TEX_PROGRADE.tex, NULL, &prog_dest);
-	SDL_RenderTexture(renderer, TEX_RETROGRADE.tex, NULL, &retro_dest);
+		SDL_SetTextureAlphaMod(
+			TEX_PROGRADE.tex, clampi(0, 255, vector_strength * 10)
+		);
+		SDL_SetTextureAlphaMod(
+			TEX_RETROGRADE.tex, clampi(0, 255, vector_strength * 10)
+		);
+		SDL_RenderTexture(renderer, TEX_PROGRADE.tex, NULL, &prog_dest);
+		SDL_RenderTexture(renderer, TEX_RETROGRADE.tex, NULL, &retro_dest);
 
-	thickLineColor(
-		renderer, player_ctr.x, player_ctr.y, prog_pos.x, prog_pos.y, 3,
-		htobe32(0x94DE0AFF)
-	);
-	thickLineColor(
-		renderer, player_ctr.x, player_ctr.y, retro_pos.x, retro_pos.y, 3,
-		htobe32(0xD2DB27FF)
-	);
+		thickLineRGBA(
+			renderer, player_ctr.x, player_ctr.y, prog_pos.x, prog_pos.y, 5,
+			148, 222, 10, clampi(0, 255, vector_strength * 10)
+		);
+		thickLineRGBA(
+			renderer, player_ctr.x, player_ctr.y, retro_pos.x, retro_pos.y, 5,
+			210, 219, 39, clampi(0, 255, vector_strength * 10)
+		);
+	}
 
 	return ERR_PASS;
 }

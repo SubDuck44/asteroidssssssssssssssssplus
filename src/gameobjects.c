@@ -18,6 +18,12 @@ enum GameObject_Types : uint32_t {
 	GAMEOBJECT_NUM
 };
 
+enum PlayermModules : uint8_t {
+	PLAYERMODULE_SOLAR,
+	PLAYERMODULE_ANTENNA,
+	PLAYERMODULE_CLAW,
+};
+
 // Declarations
 struct GameObject_Player {
 	bool     alive;
@@ -29,6 +35,7 @@ struct GameObject_Player {
 	float    force_rcs_thrusters;
 	float    force_rot;
 	ColRect* hitbox;
+	uint8_t  modules;
 };
 Error GameObject_player_update(void* data, uint32_t index_of_self);
 Error GameObject_player_create(void);
@@ -89,6 +96,13 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 			Cam_world_to_screen(self->pos, &Eng_std_camera), Eng_mouse_pos
 		);
 	}
+	if(Eng_get_key_pressed(KEY_1)) self->modules ^= (1 << PLAYERMODULE_SOLAR);
+	if(Eng_get_key_pressed(KEY_2) &&
+	   (self->modules ^ (1 << PLAYERMODULE_CLAW)) > self->modules)
+		self->modules ^= (1 << PLAYERMODULE_ANTENNA);
+	if(Eng_get_key_pressed(KEY_3) &&
+	   (self->modules ^ (1 << PLAYERMODULE_ANTENNA)) > self->modules)
+		self->modules ^= (1 << PLAYERMODULE_CLAW);
 
 	self->pos =
 		Vec2l_add_Vec2f(self->pos, Vec2f_scale(self->vel, DEFAULT_FIXED_POINT));
@@ -183,6 +197,7 @@ Error GameObject_player_create(void) {
 		.force_rot           = 0.2,
 		.force_main_thruster = 0.25,
 		.force_rcs_thrusters = 0.1,
+		.modules             = 0
 	};
 	struct GameObject_Player* new = NULL;
 	Error failed                  = Eng_register_hitbox(

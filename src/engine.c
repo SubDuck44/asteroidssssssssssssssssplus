@@ -92,7 +92,10 @@ double Eng_get_deltatime_factor(void);
 // KEY input handling BEGIN
 #define KEYS                                                                   \
 	X(W)                                                                       \
-	X(A) X(S) X(D) X(LALT) X(I) X(J) X(K) X(L) X(MINUS) X(PLUS) X(F3) X(RETURN)
+	X(A)                                                                       \
+	X(S)                                                                       \
+	X(D)                                                                       \
+	X(LALT) X(I) X(J) X(K) X(L) X(MINUS) X(PLUS) X(F3) X(RETURN) X(1) X(2) X(3)
 
 enum Keys : uint32_t {
 #define X(x) KEY_##x,

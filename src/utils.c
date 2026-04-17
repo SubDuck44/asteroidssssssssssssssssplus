@@ -17,6 +17,7 @@
 #define CODE_WARN "[1;33m"
 #define CODE_SUCCESS "[1;32m"
 #define CODE_END "[m"
+#define CODE_CLEARSCREEN "\033[2J"
 #ifndef NDEBUG
 #define ASSERT_PREDICATE(predicate, catch, success, error)                     \
 	do {                                                                       \

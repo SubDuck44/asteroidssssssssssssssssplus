@@ -26,10 +26,10 @@
 #include "utils.c"
 
 // Control flow
-SDL_AppResult     Eng_init(void);
+Error             Eng_init(void);
 [[noreturn]] void Eng_exit(void);
-void              Eng_tick_input(SDL_Event* event);
-Error             Eng_tick_once(void);
+Error             Eng_input_update(SDL_Event* event);
+Error             Eng_update_frame(void);
 
 // Collision system
 typedef struct {
@@ -97,7 +97,11 @@ double Eng_get_deltatime_factor(void);
 	X(D)                                                                       \
 	X(LALT) X(I) X(J) X(K) X(L) X(MINUS) X(PLUS) X(F3) X(RETURN) X(1) X(2) X(3)
 
-enum KeyStates : uint8_t { KEY_DOWN, KEY_RELEASED, KEY_PRESSED };
+enum KeyStates : uint8_t {
+	KEY_DOWN,
+	KEY_PRESSED,
+	KEY_RELEASED,
+};
 
 enum Keys : uint32_t {
 #define X(x) KEY_##x,
@@ -108,13 +112,12 @@ enum Keys : uint32_t {
 	KEY_NUM,
 };
 
-#define Eng_get_key_pressed(key) Eng_key_cache[key] & (1 << KEY_PRESSED)
-#define Eng_get_key_down(key) Eng_key_cache[key] & (1 << KEY_DOWN)
-#define Eng_get_key_released(key) Eng_key_cache[key] & (1 << KEY_RELEASED)
+#define Eng_get_key_down(key) (Eng_key_cache[key] & (1 << KEY_DOWN))
+#define Eng_get_key_pressed(key) (Eng_key_cache[key] & (1 << KEY_PRESSED))
+#define Eng_get_key_released(key) (Eng_key_cache[key] & (1 << KEY_RELEASED))
 
-extern bool       Eng_key_cache[KEY_NUM];
+extern uint8_t    Eng_key_cache[KEY_NUM];
 extern SDL_FPoint Eng_mouse_pos;
-extern SDL_Event  Eng_input_event_buf;
 // KEY input handling END
 
 extern SDL_Point Eng_screensize;
@@ -181,9 +184,8 @@ const char EMB_IOSEVKA_FONT[] = {
 
 // KEY input handling BEGIN
 
-bool       Eng_key_cache[KEY_NUM] = {0};
+uint8_t    Eng_key_cache[KEY_NUM] = {0};
 SDL_FPoint Eng_mouse_pos          = {0};
-SDL_Event* Eng_input_event_buf    = NULL;
 
 // KEY input handling END
 
@@ -194,7 +196,7 @@ SDL_Point Eng_screensize = {DEFAULT_SCREENWIDTH, DEFAULT_SCREENHEIGHT};
 
 /* Initialize the engine, required for… well… everything in
  * it to work */
-SDL_AppResult Eng_init(void) {
+Error Eng_init(void) {
 	SDL_Log("INFO: Initializing " APPLICATION_TITLE "…");
 	bool fatal_error = false;
 
@@ -364,7 +366,7 @@ SDL_AppResult Eng_init(void) {
 	                 CODE_ERROR "FATAL: Caught one or more fatal "
 	                            "exceptions, aborting…" CODE_END);
 	SDL_Log("INFO: Welcome to " APPLICATION_TITLE "!");
-	return SDL_APP_CONTINUE;
+	return ERR_PASS;
 }
 
 /* Runs at the end of the program. */
@@ -378,7 +380,7 @@ Run all input capturing events, return value MUST be
 returned from SDL_AppEvent() SDL_Event* event: Pass
 SDL_Event* from SDL_AppEvent()
  */
-void Eng_tick_input(SDL_Event* event) {
+Error Eng_input_update(SDL_Event* event) {
 	switch(event->type) {
 	case SDL_EVENT_MOUSE_MOTION:
 		Eng_mouse_pos = (SDL_FPoint) {event->motion.x, event->motion.y};
@@ -415,9 +417,9 @@ void Eng_tick_input(SDL_Event* event) {
 
 #define X(x)                                                                   \
 	case SDLK_##x:                                                             \
-		Eng_key_cache[KEY_##x] ^= (1 << KEY_DOWN);                             \
+		Eng_key_cache[KEY_##x] |= (1 << KEY_DOWN);                             \
+		Eng_key_cache[KEY_##x] |= (1 << KEY_PRESSED);                          \
 		Eng_key_cache[KEY_##x] &= ~(1 << KEY_RELEASED);                        \
-		Eng_key_cache[KEY_##x] &= (1 << KEY_PRESSED);                          \
 		break;
 			KEYS
 #undef X
@@ -428,9 +430,9 @@ void Eng_tick_input(SDL_Event* event) {
 		switch(event->key.key) {
 #define X(x)                                                                   \
 	case SDLK_##x:                                                             \
-		Eng_key_cache[KEY_##x] ^= (1 << KEY_DOWN);                             \
+		Eng_key_cache[KEY_##x] &= ~(1 << KEY_DOWN);                            \
 		Eng_key_cache[KEY_##x] &= ~(1 << KEY_PRESSED);                         \
-		Eng_key_cache[KEY_##x] &= (1 << KEY_RELEASED);                         \
+		Eng_key_cache[KEY_##x] |= (1 << KEY_RELEASED);                         \
 		break;
 			KEYS
 #undef X
@@ -452,16 +454,33 @@ void Eng_tick_input(SDL_Event* event) {
 	return ERR_PASS;
 }
 
+void Eng_input_deferred(void) {
+	for(uint32_t i = 0; i < KEY_NUM; i++) {
+		Eng_key_cache[i] &= ~(1 << KEY_PRESSED);
+		Eng_key_cache[i] &= ~(1 << KEY_RELEASED);
+	}
+}
+
 /*
 Process all callbacks in the update_callbacks queue
 */
-Error Eng_tick_once(void) {
+Error Eng_update_frame(void) {
 	// Start frame timer
 	const uint64_t frametime_start = SDL_GetTicksNS();
 
-	for(uint16_t i = 0; i < KEY_NUM; i++) {}
+	// Check for new input events
+	SDL_Event cur_event = {0};
+	while(SDL_PollEvent(&cur_event)) {
+		Eng_input_update(&cur_event);
+	}
 
-	Eng_tick_input(&Eng_input_event_buf);
+	if(Eng_get_key_down(KEY_W)) {
+		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+		SDL_FRect rect = {
+			50, 50, Eng_screensize.x - 100, Eng_screensize.y - 100
+		};
+		SDL_RenderRect(renderer, &rect);
+	}
 
 	// Grey background
 	SDL_SetRenderDrawColor(renderer, 39, 36, 43, 255);
@@ -520,6 +539,9 @@ Error Eng_tick_once(void) {
 			);
 		}
 	}
+
+	// Clear bitflags on input key_cache
+	Eng_input_deferred();
 
 	return ERR_PASS;
 }

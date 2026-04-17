@@ -96,11 +96,11 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 			Cam_world_to_screen(self->pos, &Eng_std_camera), Eng_mouse_pos
 		);
 	}
-	if(Eng_get_key_down(KEY_1)) self->modules ^= (1 << PLAYERMODULE_SOLAR);
-	if(Eng_get_key_down(KEY_2) &&
+	if(Eng_get_key_pressed(KEY_1)) self->modules ^= (1 << PLAYERMODULE_SOLAR);
+	if(Eng_get_key_pressed(KEY_2) &&
 	   (self->modules ^ (1 << PLAYERMODULE_CLAW)) > self->modules)
 		self->modules ^= (1 << PLAYERMODULE_ANTENNA);
-	if(Eng_get_key_down(KEY_3) &&
+	if(Eng_get_key_pressed(KEY_3) &&
 	   (self->modules ^ (1 << PLAYERMODULE_ANTENNA)) > self->modules)
 		self->modules ^= (1 << PLAYERMODULE_CLAW);
 

@@ -43,11 +43,6 @@ extern const char      EMB_IOSEVKA_FONT[];
 |  IMPLEMENTATION                                                              |
 ----------------------------------------------------------------------------- */
 
-// Frame handling ==============================================================
-double Eng_get_deltatime_factor(void) {
-	return last_frame_time / ((double) 1'000'000'000 / Eng_desired_fps);
-}
-
 // Control flow
 Error             Eng_init(void);
 [[noreturn]] void Eng_exit(void);
@@ -227,6 +222,11 @@ SDL_Window*   window;
 SDL_Renderer* renderer;
 
 Camera Eng_std_camera;
+
+// Frame handling
+double Eng_get_deltatime_factor(void) {
+	return last_frame_time / ((double) 1'000'000'000 / Eng_desired_fps);
+}
 
 // Control flow ================================================================
 

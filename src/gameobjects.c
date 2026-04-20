@@ -4,13 +4,14 @@
 #define _DEFAULT_SOURCE
 #endif
 
-#if __INCLUDE_LEVEL__ == 0
+#if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 #include <SDL3/SDL.h>
 
 #include "engine.c"
 #include "utils.c"
 #endif
 
+// Types
 enum GameObject_Types : uint32_t {
 	GAMEOBJECT_PLAYER,
 	GAMEOBJECT_ASTEROID,
@@ -19,13 +20,13 @@ enum GameObject_Types : uint32_t {
 	GAMEOBJECT_NUM
 };
 
+// Player
 enum PlayermModules : uint8_t {
 	PLAYERMODULE_SOLAR,
 	PLAYERMODULE_ANTENNA,
 	PLAYERMODULE_CLAW,
 };
-
-// Declarations
+// -----------------------------------------------------------------------------
 struct GameObject_Player {
 	bool     alive;
 	Vector2l pos;
@@ -38,9 +39,11 @@ struct GameObject_Player {
 	ColRect* hitbox;
 	uint8_t  modules;
 };
-Error GameObject_player_update(void* data, uint32_t index_of_self);
+// -----------------------------------------------------------------------------
 Error GameObject_player_create(void);
+Error GameObject_player_update(void* data, uint32_t index_of_self);
 
+// Asteroid
 struct GameObject_Asteroid {
 	Vector2l pos;
 	float    rot;
@@ -48,12 +51,15 @@ struct GameObject_Asteroid {
 	double   ang_vel;
 	ColRect* hitbox;
 };
+// -----------------------------------------------------------------------------
 Error GameObject_asteroid_create(struct GameObject_Asteroid* override);
 Error GameObject_asteroid_update(void* data, uint32_t index_of_self);
 
+// Game overlay
 struct GameObject_GameOverlay {
 	TTF_Text* toast;
 };
+// -----------------------------------------------------------------------------
 Error GameObject_gameoverlay_create(void);
 Error GameObject_gameoverlay_update(void* data, uint32_t index_of_self);
 
@@ -65,7 +71,52 @@ Error GameObject_gameoverlay_update(void* data, uint32_t index_of_self);
 
 #include "res.c"
 
-// Function definitions
+// Player ======================================================================
+Error GameObject_player_create(void) {
+	struct GameObject_Player self = {
+		.alive               = true,
+		.pos                 = {0},
+		.rot                 = 0.0,
+		.vel                 = {0},
+		.ang_vel             = 0.0,
+		.force_rot           = 0.2,
+		.force_main_thruster = 0.25,
+		.force_rcs_thrusters = 0.1,
+		.modules             = 3
+	};
+	struct GameObject_Player* new = NULL;
+	Error failed                  = Eng_register_hitbox(
+        self.pos, (Vector2f) {50, 50}, new, GAMEOBJECT_PLAYER, &self.hitbox,
+        &Eng_std_collision_tree
+    );
+	ASSERT_PREDICATE(
+		failed == true, return false;
+		,
+		CODE_SUCCESS "INFO: Successfully registered hitbox for GameObject "
+					 "player" CODE_END,
+		CODE_ERROR
+		"FATAL: Failed to register hitbox for GameObject player" CODE_END
+	);
+	ASSERT_PREDICATE(
+		Eng_create_object(
+			&self, (void*) &new, sizeof(struct GameObject_Player),
+			GAMEOBJECT_PLAYER
+		),
+		return false;
+		, CODE_SUCCESS "INFO: Successfully created GameObject: player" CODE_END,
+		CODE_ERROR "FATAL: Failed to create GameObject player" CODE_END
+	);
+	ASSERT_PREDICATE(
+		Eng_hook_update(GameObject_player_update, new), return false;
+		,
+		CODE_SUCCESS "INFO: Successfully hooked update callback for GameObject "
+					 "player" CODE_END,
+		CODE_ERROR "FATAL: Failed to hook update callback for GameObject "
+				   "player" CODE_END
+	);
+	return true;
+}
+
 Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	(void) index_of_self;
 	struct GameObject_Player* self = data;
@@ -248,51 +299,7 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	return true;
 }
 
-Error GameObject_player_create(void) {
-	struct GameObject_Player self = {
-		.alive               = true,
-		.pos                 = {0},
-		.rot                 = 0.0,
-		.vel                 = {0},
-		.ang_vel             = 0.0,
-		.force_rot           = 0.2,
-		.force_main_thruster = 0.25,
-		.force_rcs_thrusters = 0.1,
-		.modules             = 3
-	};
-	struct GameObject_Player* new = NULL;
-	Error failed                  = Eng_register_hitbox(
-        self.pos, (Vector2f) {50, 50}, new, GAMEOBJECT_PLAYER, &self.hitbox,
-        &Eng_std_collision_tree
-    );
-	ASSERT_PREDICATE(
-		failed == true, return false;
-		,
-		CODE_SUCCESS "INFO: Successfully registered hitbox for GameObject "
-					 "player" CODE_END,
-		CODE_ERROR
-		"FATAL: Failed to register hitbox for GameObject player" CODE_END
-	);
-	ASSERT_PREDICATE(
-		Eng_create_object(
-			&self, (void*) &new, sizeof(struct GameObject_Player),
-			GAMEOBJECT_PLAYER
-		),
-		return false;
-		, CODE_SUCCESS "INFO: Successfully created GameObject: player" CODE_END,
-		CODE_ERROR "FATAL: Failed to create GameObject player" CODE_END
-	);
-	ASSERT_PREDICATE(
-		Eng_hook_update(GameObject_player_update, new), return false;
-		,
-		CODE_SUCCESS "INFO: Successfully hooked update callback for GameObject "
-					 "player" CODE_END,
-		CODE_ERROR "FATAL: Failed to hook update callback for GameObject "
-				   "player" CODE_END
-	);
-	return true;
-}
-
+// Asteroid ====================================================================
 Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
 	struct GameObject_Asteroid self;
 	if(!override) {
@@ -384,6 +391,7 @@ Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
 	return true;
 }
 
+// Game overlay ================================================================
 Error GameObject_gameoverlay_create(void) {
 	struct GameObject_GameOverlay data = {
 		.toast = NULL,

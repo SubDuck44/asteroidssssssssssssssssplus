@@ -7,6 +7,7 @@
 
 #include "utils.c"
 
+// Repl
 enum ReplCommands : uint8_t {
 	COMMAND_INVALID,
 	COMMAND_ECHO,
@@ -14,7 +15,7 @@ enum ReplCommands : uint8_t {
 	COMMAND_SPAWN_ASTEROID,
 	COMMAND_NUM,
 };
-
+// -----------------------------------------------------------------------------
 typedef struct {
 	uint8_t        command;
 	SDL_Thread*    thread;
@@ -23,14 +24,18 @@ typedef struct {
 	size_t         cap;
 	ssize_t        len;
 } DebugRepl;
-
+// -----------------------------------------------------------------------------
 extern DebugRepl Repl_repl;
-
+// -----------------------------------------------------------------------------
 Error Repl_init(void);
 int   Repl_run(void* data);
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
+// Repl
+DebugRepl Repl_repl = {0};
+
+// Command list
 const char* commands[] = {
 	" ",
 	"echo",
@@ -38,8 +43,10 @@ const char* commands[] = {
 	"spawn",
 };
 
-DebugRepl Repl_repl = {0};
+// Parse args
+static char* try_get_arg(uint16_t index, char** arg_buf, uint16_t arg_buf_len);
 
+// Repl ========================================================================
 Error Repl_init(void) {
 	Repl_repl.thread = SDL_CreateThread(Repl_run, "DebugRepl", &Repl_repl);
 	ASSERT_PREDICATE_SDL(
@@ -58,12 +65,6 @@ Error Repl_init(void) {
 	);
 
 	return true;
-}
-
-static char* try_get_arg(uint16_t index, char** arg_buf, uint16_t arg_buf_len) {
-	if(index > arg_buf_len - 1) return NULL;
-	if(strlen(arg_buf[index]) <= 0) return NULL;
-	return arg_buf[index];
 }
 
 int Repl_run(void* data) {
@@ -129,6 +130,12 @@ int Repl_run(void* data) {
 			return 0;
 		}
 	}
+}
+
+static char* try_get_arg(uint16_t index, char** arg_buf, uint16_t arg_buf_len) {
+	if(index > arg_buf_len - 1) return NULL;
+	if(strlen(arg_buf[index]) <= 0) return NULL;
+	return arg_buf[index];
 }
 
 #endif

@@ -213,8 +213,7 @@ double Vec2l_get_distance(Vector2l from, Vector2l to) {
 	return Vec2l_length(Vec2l_subtract(to, from));
 }
 
-// Vector2f math
-// ===============================================================
+// Vector2f math ===============================================================
 
 Vector2f Vec2f_add(Vector2f a, Vector2f b) {
 	return (Vector2f) {a.x + b.x, a.y + b.y};
@@ -267,8 +266,7 @@ SDL_FPoint Vec2f_to_FPoint(Vector2f a) {
 	return (SDL_FPoint) {a.x, a.y};
 }
 
-// SDL_FPoint math
-// =============================================================
+// SDL_FPoint math =============================================================
 
 SDL_FPoint FPoint_add(SDL_FPoint a, SDL_FPoint b) {
 	return (SDL_FPoint) {a.x + b.x, a.y + b.y};
@@ -323,8 +321,7 @@ Vector2f FPoint_to_Vec2f(SDL_FPoint a) {
 	return (Vector2f) {a.x, a.y};
 }
 
-// Camera/transform system REWRITE
-// =============================================
+// Camera/transform system =====================================================
 SDL_FPoint Cam_world_to_screen(Vector2l target, Camera* cam) {
 	int64_t diff_x = (target.x - cam->target.x) / DEFAULT_FIXED_POINT;
 	int64_t diff_y = (target.y - cam->target.y) / DEFAULT_FIXED_POINT;
@@ -427,8 +424,7 @@ int32_t Vec2_length(Vector2 a) {
 	return sqrt((a.x * a.x) + (a.y * a.y));
 }
 
-// Misc
-// ========================================================================
+// Misc ========================================================================
 
 double clamp(double minimum, double maximum, double val) {
 	return min(maximum, max(minimum, val));

@@ -4,32 +4,55 @@
 #define _DEFAULT_SOURCE
 #endif
 
-#define APPLICATION_TITLE "Asteroidssssssssssssssss+"
-
-#define GAMEOBJECT_CREATE_SUCCESS "INFO: Successfully created GameObject"
-#define GAMEOBJECT_CREATE_FAILURE "FATAL: Failed to create GameObject"
-#define WRAP_COMPASS(x) PROPER_MOD(x, 360)
-#define PROPER_MOD(x, mod) (((x % mod) + mod) % mod)
-
-#define DEFAULT_GAMEOBJECT_QUEUE_CAP 32
-#define DEFAULT_UPDATECALLBACK_QUEUE_CAP 32
-#define DEFAULT_SCREENWIDTH 1280
-#define DEFAULT_SCREENHEIGHT 720
-#define DEFAULT_VSYNC_ENABLE
-#define DEFAULT_FPS 60
-#define DEFAULT_FPS_TEXTBUFFER_SIZE 64
-#define DEFAULT_FONTSIZE 12.0f
-#define DEFAULT_COLTREE_SIZE 16
-#define DEFAULT_TOASTQUEUE_SIZE 8
-
+#include "utils.c"
 #include <SDL3_ttf/SDL_ttf.h>
 
-#include "utils.c"
+// Title of the application the program should use
+#define APPLICATION_TITLE "Asteroidssssssssssssssss+"
+
+// DynArr default capacities
+#define DEFAULT_GAMEOBJECT_QUEUE_CAP 32
+#define DEFAULT_UPDATECALLBACK_QUEUE_CAP 32
+#define DEFAULT_TOASTQUEUE_SIZE 8
+#define DEFAULT_COLTREE_SIZE 16
+#define DEFAULT_FPS_TEXTBUFFER_SIZE 64
+
+// Default window size on startup
+#define DEFAULT_SCREENWIDTH 1280
+#define DEFAULT_SCREENHEIGHT 720
+// -----------------------------------------------------------------------------
+extern SDL_Point Eng_screensize;
+
+// Frame handling
+#define DEFAULT_VSYNC_ENABLE
+#define DEFAULT_FPS 60
+// -----------------------------------------------------------------------------
+extern uint32_t Eng_desired_fps;
+extern uint32_t Eng_current_fps;
+// -----------------------------------------------------------------------------
+double Eng_get_deltatime_factor(void);
+
+// Text handling
+#define DEFAULT_FONTSIZE 12.0f
+// -----------------------------------------------------------------------------
+extern TTF_Font*       Eng_font;
+extern TTF_TextEngine* Eng_text_engine;
+extern const char      EMB_IOSEVKA_FONT[];
+
+/* -----------------------------------------------------------------------------
+|  IMPLEMENTATION                                                              |
+----------------------------------------------------------------------------- */
+
+// Frame handling ==============================================================
+double Eng_get_deltatime_factor(void) {
+	return last_frame_time / ((double) 1'000'000'000 / Eng_desired_fps);
+}
 
 // Control flow
 Error             Eng_init(void);
 [[noreturn]] void Eng_exit(void);
 Error             Eng_input_update(SDL_Event* event);
+void              Eng_input_deferred();
 Error             Eng_update_frame(void);
 
 // Collision system
@@ -51,6 +74,8 @@ typedef struct {
 	bool     collided;
 } ColInfo;
 // -----------------------------------------------------------------------------
+extern ColTree Eng_std_collision_tree;
+// -----------------------------------------------------------------------------
 Error Eng_init_coltree(ColTree* dest);
 Error Eng_register_hitbox(
 	Vector2l pos, Vector2f size, void* owner, uint32_t typeof_owner,
@@ -66,9 +91,15 @@ typedef struct {
 	TTF_Text*  display;
 } DebugMenu;
 // -----------------------------------------------------------------------------
+extern DebugMenu Eng_std_debug_menu;
+extern bool      Eng_debug_vis;
+// -----------------------------------------------------------------------------
 void update_debug_menu(DebugMenu* data);
 
 // GameObject management
+#define GAMEOBJECT_CREATE_SUCCESS "INFO: Successfully created GameObject"
+#define GAMEOBJECT_CREATE_FAILURE "FATAL: Failed to create GameObject"
+// -----------------------------------------------------------------------------
 typedef struct {
 	uint32_t type;
 	void*    data;
@@ -87,7 +118,7 @@ Error Eng_hook_update(Method func, void* data);
 Error Eng_unhook_update(void* data);
 void* Eng_get_gameobject(uint32_t type, int32_t index);
 
-// Misc
+// Toast system
 enum ToastTypes : uint8_t {
 	TOAST_NORM,
 	TOAST_WARN,
@@ -105,25 +136,25 @@ typedef struct {
 	size_t cap;
 } ToastArray;
 // -----------------------------------------------------------------------------
-double Eng_get_deltatime_factor(void);
-Error  Eng_push_toast(char* message, size_t len, uint8_t type);
-Error  Eng_pop_toast(Toast* dest);
-Error  Eng_init_toast_queue(void);
+extern ToastArray Eng_toast_queue;
+// -----------------------------------------------------------------------------
+Error Eng_push_toast(char* message, size_t len, uint8_t type);
+Error Eng_pop_toast(Toast* dest);
+Error Eng_init_toast_queue(void);
 
-// KEY input handling BEGIN
+// Input handling
 #define KEYS                                                                   \
 	X(W)                                                                       \
 	X(A)                                                                       \
 	X(S)                                                                       \
 	X(D)                                                                       \
 	X(LALT) X(I) X(J) X(K) X(L) X(MINUS) X(PLUS) X(F3) X(RETURN) X(1) X(2) X(3)
-
+// -----------------------------------------------------------------------------
 enum KeyStates : uint8_t {
 	KEY_DOWN,
 	KEY_PRESSED,
 	KEY_RELEASED,
 };
-
 enum Keys : uint32_t {
 #define X(x) KEY_##x,
 	KEYS
@@ -132,43 +163,52 @@ enum Keys : uint32_t {
 	KEY_MOUSE_RIGHT,
 	KEY_NUM,
 };
-
+// -----------------------------------------------------------------------------
 #define Eng_get_key_down(key) (Eng_key_cache[key] & (1 << KEY_DOWN))
 #define Eng_get_key_pressed(key) (Eng_key_cache[key] & (1 << KEY_PRESSED))
 #define Eng_get_key_released(key) (Eng_key_cache[key] & (1 << KEY_RELEASED))
-
+// -----------------------------------------------------------------------------
 extern uint8_t    Eng_key_cache[KEY_NUM];
 extern SDL_FPoint Eng_mouse_pos;
-// KEY input handling END
 
-extern SDL_Point Eng_screensize;
-extern uint32_t  Eng_desired_fps;
-extern uint32_t  Eng_current_fps;
-
-extern ColTree   Eng_std_collision_tree;
-extern DebugMenu Eng_std_debug_menu;
-extern bool      Eng_debug_vis;
-
-extern TTF_Font*       Eng_font;
-extern TTF_TextEngine* Eng_text_engine;
-extern const char      EMB_IOSEVKA_FONT[];
-
+// Main rendering interface
 extern SDL_Window*   window;
 extern SDL_Renderer* renderer;
 
+// Camera system
 extern Camera Eng_std_camera;
 
-extern ToastArray Eng_toast_queue;
-
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
+
+#include "gameobjects.c"
+#include "repl.c"
+#include "res.c"
 
 #include <inttypes.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "gameobjects.c"
-#include "repl.c"
-#include "res.c"
+SDL_Point Eng_screensize = {DEFAULT_SCREENWIDTH, DEFAULT_SCREENHEIGHT};
+
+static uint64_t last_frame_time = 1;
+uint32_t        Eng_desired_fps = 60;
+uint32_t        Eng_current_fps = 1;
+
+static uint16_t fontsize;
+TTF_Font*       Eng_font;
+TTF_TextEngine* Eng_text_engine;
+const char EMB_IOSEVKA_FONT[] = {
+#embed "../res/Iosevka-Regular.ttf"
+};
+
+ColTree Eng_std_collision_tree;
+
+DebugMenu Eng_std_debug_menu;
+#ifndef NDEBUG
+bool Eng_debug_vis = true;
+#else
+bool Eng_debug_vis = false;
+#endif
 
 static GameObject* game_objects     = {0};
 static uint32_t    game_objects_len = 0;
@@ -178,46 +218,17 @@ static UpdateHook* update_callbacks     = {0};
 static uint32_t    update_callbacks_len = 0;
 static uint32_t    update_callbacks_cap = DEFAULT_UPDATECALLBACK_QUEUE_CAP;
 
-ColTree Eng_std_collision_tree;
+ToastArray Eng_toast_queue;
 
-DebugMenu Eng_std_debug_menu;
-
-#ifndef NDEBUG
-bool Eng_debug_vis = true;
-#else
-bool Eng_debug_vis = false;
-#endif
-
-static uint64_t last_frame_time = 1;
-uint32_t        Eng_desired_fps = 60;
-uint32_t        Eng_current_fps = 1;
-
-static uint16_t fontsize;
-TTF_Font*       Eng_font;
-TTF_TextEngine* Eng_text_engine;
+uint8_t    Eng_key_cache[KEY_NUM] = {0};
+SDL_FPoint Eng_mouse_pos          = {0};
 
 SDL_Window*   window;
 SDL_Renderer* renderer;
 
 Camera Eng_std_camera;
 
-ToastArray Eng_toast_queue;
-
-const char EMB_IOSEVKA_FONT[] = {
-#embed "../res/Iosevka-Regular.ttf"
-};
-
-// KEY input handling BEGIN
-
-uint8_t    Eng_key_cache[KEY_NUM] = {0};
-SDL_FPoint Eng_mouse_pos          = {0};
-
-// KEY input handling END
-
-SDL_Point Eng_screensize = {DEFAULT_SCREENWIDTH, DEFAULT_SCREENHEIGHT};
-
-// Control flow
-// ================================================================
+// Control flow ================================================================
 
 /* Initialize the engine, required for… well… everything in
  * it to work */
@@ -912,10 +923,6 @@ void* Eng_get_gameobject(uint32_t type, int32_t index) {
 }
 
 // Misc
-
-double Eng_get_deltatime_factor(void) {
-	return last_frame_time / ((double) 1'000'000'000 / Eng_desired_fps);
-}
 
 Error Eng_push_toast(char* message, size_t len, uint8_t type) {
 	if(Eng_toast_queue.len + 1 > Eng_toast_queue.cap) {

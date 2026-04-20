@@ -7,8 +7,13 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+// Math utility variables
 #define RAD2DEG (180 / M_PI)
 #define DEG2RAD (1 / RAD2DEG)
+
+// Wrapping
+#define WRAP_COMPASS(x) PROPER_MOD(x, 360)
+#define PROPER_MOD(x, mod) (((x % mod) + mod) % mod)
 
 // Terminal control codes
 #define CODE_ERROR "[1;31m"

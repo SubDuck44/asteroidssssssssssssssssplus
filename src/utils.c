@@ -21,6 +21,8 @@
 #define CODE_SUCCESS "[1;32m"
 #define CODE_END "[m"
 #define CODE_CLEARSCREEN "\033[2J"
+
+// Asserts
 #ifndef NDEBUG
 #define ASSERT_PREDICATE(predicate, catch, success, error)                     \
 	do {                                                                       \
@@ -45,6 +47,8 @@
 #define ASSERT_PREDICATE_SDL(predicate, catch, success, error)                 \
 	(void) (predicate)
 #endif
+
+// Fmt error with sdl error attached
 #define SDL_Err(fmt, ...)                                                      \
 	do {                                                                       \
 		SDL_LogError(                                                          \
@@ -53,6 +57,66 @@
 		);                                                                     \
 	} while(0)
 typedef bool Error;
+
+// Dynamic arrays
+#define DEFAULT_DYNARR_CAP 16
+
+#define DynArrN(type, name)                                                    \
+	typedef struct {                                                           \
+		type*  arr;                                                            \
+		size_t len;                                                            \
+		size_t cap;                                                            \
+	} name
+
+#define DynArr(type) DynArrN(type, type##s)
+
+#define DynArrPush(array, data)                                                \
+	do {                                                                       \
+		(array)->len++;                                                        \
+		if((array)->len > (array)->cap) {                                      \
+			(array)->arr = reallocarray(                                       \
+				(array)->arr, maxi((array)->cap << 1, DEFAULT_DYNARR_CAP),     \
+				sizeof((array)->arr[0])                                        \
+			);                                                                 \
+			if(!((array)->arr)) {                                              \
+				SDL_Log(                                                       \
+					CODE_ERROR "FATAL: Failed to allocate memory for "         \
+							   "DynArr"                                        \
+				);                                                             \
+				Eng_exit();                                                    \
+			}                                                                  \
+			SDL_Log(                                                           \
+				CODE_SUCCESS "INFO: Successfully expanded DynArr" CODE_END     \
+			);                                                                 \
+		}                                                                      \
+		(array)->arr[(array)->len - 1] = data;                                 \
+	} while(0)
+
+#define DynArrPop(array)                                                       \
+	do {                                                                       \
+		(array)->len--;                                                        \
+		if((array)->len <= (array)->cap >> 1) {                                \
+			(array)->arr = reallocarray(                                       \
+				(array)->arr, maxi((array)->cap >> 1, DEFAULT_DYNARR_CAP),     \
+				sizeof((array)->arr[0])                                        \
+			);                                                                 \
+			if(!((array)->arr)) {                                              \
+				SDL_Log(                                                       \
+					CODE_ERROR "FATAL: Failed to allocate memory for "         \
+							   "DynArr"                                        \
+				);                                                             \
+				Eng_exit();                                                    \
+			}                                                                  \
+			SDL_Log(CODE_SUCCESS "INFO: Successfully shrunk DynArr" CODE_END); \
+		}                                                                      \
+	} while(0)
+
+#define DynArrLoop(array, body)                                                \
+	do {                                                                       \
+		for(size_t i = 0; i < (array)->len; i++) {                             \
+			body                                                               \
+		}                                                                      \
+	} while(0)
 
 // Vector2f math
 typedef struct {

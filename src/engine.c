@@ -10,13 +10,6 @@
 // Title of the application the program should use
 #define APPLICATION_TITLE "Asteroidssssssssssssssss+"
 
-// DynArr default capacities
-#define DEFAULT_GAMEOBJECT_QUEUE_CAP 32
-#define DEFAULT_UPDATECALLBACK_QUEUE_CAP 32
-#define DEFAULT_TOASTQUEUE_SIZE 8
-#define DEFAULT_COLTREE_SIZE 16
-#define DEFAULT_FPS_TEXTBUFFER_SIZE 64
-
 // Default window size on startup
 #define DEFAULT_SCREENWIDTH 1280
 #define DEFAULT_SCREENHEIGHT 720
@@ -57,11 +50,7 @@ typedef struct {
 	void*    owner;
 	uint32_t typeof_owner;
 } ColRect;
-typedef struct {
-	ColRect* arr;
-	uint16_t len;
-	uint16_t cap;
-} ColTree;
+DynArrN(ColRect, ColTree);
 typedef struct {
 	ColRect* collider;
 	void*    owner;
@@ -71,7 +60,6 @@ typedef struct {
 // -----------------------------------------------------------------------------
 extern ColTree Eng_std_collision_tree;
 // -----------------------------------------------------------------------------
-Error Eng_init_coltree(ColTree* dest);
 Error Eng_register_hitbox(
 	Vector2l pos, Vector2f size, void* owner, uint32_t typeof_owner,
 	ColRect** dest, ColTree* in
@@ -181,14 +169,10 @@ bool Eng_debug_vis = true;
 bool Eng_debug_vis = false;
 #endif
 
-static GameObject* game_objects     = {0};
-static uint32_t    game_objects_len = 0;
-static uint32_t    game_objects_cap = DEFAULT_GAMEOBJECT_QUEUE_CAP;
-
-static UpdateHook* update_callbacks     = {0};
-static uint32_t    update_callbacks_len = 0;
-static uint32_t    update_callbacks_cap = DEFAULT_UPDATECALLBACK_QUEUE_CAP;
-
+DynArr(GameObject);
+static GameObjects game_objects;
+DynArr(UpdateHook);
+static UpdateHooks update_callbacks;
 
 uint8_t    Eng_key_cache[KEY_NUM] = {0};
 SDL_FPoint Eng_mouse_pos          = {0};
@@ -210,31 +194,6 @@ double Eng_get_deltatime_factor(void) {
 Error Eng_init(void) {
 	SDL_Log("INFO: Initializing " APPLICATION_TITLE "…");
 	bool fatal_error = false;
-
-	// Try allocate memory for GameObject queue
-	ASSERT_PREDICATE(
-		(game_objects =
-	         calloc(DEFAULT_GAMEOBJECT_QUEUE_CAP, sizeof(game_objects[0]))),
-		fatal_error = true;
-		,
-		CODE_SUCCESS "INFO: Successfully allocated memory "
-					 "for GameObject queue" CODE_END,
-		CODE_ERROR "FATAL: Failed to allocate memory "
-				   "for GameObject queue" CODE_END
-	);
-
-	// Try allocate memory for UpdateHook queue
-	ASSERT_PREDICATE(
-		update_callbacks = calloc(
-			DEFAULT_UPDATECALLBACK_QUEUE_CAP, sizeof(update_callbacks[0])
-		),
-		fatal_error = true;
-		,
-		CODE_SUCCESS "INFO: Successfully allocated memory "
-					 "for UpdateHook queue" CODE_END,
-		CODE_ERROR "FATAL: Failed to allocate memory for "
-				   "UpdateHook queue" CODE_END
-	);
 
 	// Try setup main SDL lib
 	ASSERT_PREDICATE_SDL(SDL_Init(SDL_INIT_VIDEO), fatal_error = true;
@@ -340,13 +299,6 @@ Error Eng_init(void) {
 #else
 	(void) texture_failed;
 #endif
-
-	// Try setup ColTree
-	ASSERT_PREDICATE(
-		Eng_init_coltree(&Eng_std_collision_tree), fatal_error = true;
-		, CODE_SUCCESS "INFO: Succesfully initialized ColTree" CODE_END,
-		CODE_ERROR "FATAL: Failed to initialize ColTree" CODE_END
-	);
 
 	// Try setup DebugRepl
 	ASSERT_PREDICATE(
@@ -508,8 +460,9 @@ Error Eng_update_frame(void) {
 		Eng_std_camera.zoom = 1 * pow(1.1, Eng_std_camera.zoom_factor);
 	}
 
-	for(uint32_t i = 0; i < update_callbacks_len; i++) {
-		if(update_callbacks[i].func(update_callbacks[i].argv, i) == false) {
+	for(uint32_t i = 0; i < update_callbacks.len; i++) {
+		if(update_callbacks.arr[i].func(update_callbacks.arr[i].argv, i) ==
+		   false) {
 			return false;
 		}
 	}
@@ -558,23 +511,6 @@ Error Eng_update_frame(void) {
 }
 
 // Collision system ============================================================
-
-Error Eng_init_coltree(ColTree* dest) {
-	dest->arr = calloc(DEFAULT_COLTREE_SIZE, sizeof(ColRect));
-	ASSERT_PREDICATE(
-		dest->arr, return false;
-		,
-		CODE_SUCCESS
-		"INFO: Successfully allocated memory for collision tree" CODE_END,
-		CODE_ERROR
-		"FATAL: Failed to allocate memory for collision tree" CODE_END
-	);
-	dest->cap = DEFAULT_COLTREE_SIZE;
-	dest->len = 0;
-
-	return true;
-}
-
 Error Eng_register_hitbox(
 	Vector2l pos, Vector2f size, void* owner, uint32_t typeof_owner,
 	ColRect** dest, ColTree* in
@@ -583,18 +519,9 @@ Error Eng_register_hitbox(
 		.pos = pos, .size = size, .owner = owner, .typeof_owner = typeof_owner
 	};
 
-	if(in->len + 1 > in->cap) {
-		ColRect* tmp = reallocarray(in->arr, in->cap * 2, sizeof(*in->arr));
-		ASSERT_PREDICATE(
-			tmp, return false;
-			, CODE_SUCCESS "INFO: Successfully expanded ColTree" CODE_END,
-			CODE_ERROR "FATAL: Failed to expand Coltree" CODE_END
-		);
-		in->arr = tmp;
-	}
-	in->arr[in->len] = data;
-	*dest            = &in->arr[in->len];
-	in->len++;
+	DynArrPush(in, data);
+
+	*dest = &in->arr[in->len - 1];
 
 	return true;
 }
@@ -603,20 +530,9 @@ Error Eng_unregister_hitbox(ColRect* target, ColTree* in) {
 	for(uint16_t i = 0; i < in->len; i++) {
 		if(&in->arr[i] == target) {
 			if(i != in->len - 1) { in->arr[i] = in->arr[in->len - 1]; }
-			in->len--;
 
-			if(in->len <= in->cap >> 1 &&
-			   in->cap >> 1 <= DEFAULT_COLTREE_SIZE) {
-				ColRect* tmp =
-					reallocarray(in->arr, in->cap >> 1, sizeof(*in->arr));
-				ASSERT_PREDICATE(
-					tmp, return false;
-					, CODE_SUCCESS "INFO: Successfully shrunk ColTree" CODE_END,
-					CODE_ERROR "FATAL: Failed to shrink ColTree" CODE_END
-				);
-				in->arr = tmp;
-				in->cap /= 2;
-			}
+			DynArrPop(in);
+
 			break;
 		}
 	}
@@ -630,8 +546,8 @@ Error Eng_unregister_hitbox(ColRect* target, ColTree* in) {
 }
 
 Error Eng_update_hitbox(ColRect* target, Vector2l* pos, Vector2f* size) {
-	target->pos  = (pos) ? *pos : target->pos;
-	target->size = (size) ? *size : target->size;
+	if(pos) target->pos = *pos;
+	if(size) target->size = *size;
 	if(Eng_debug_vis) {
 		SDL_FPoint pos    = {0};
 		SDL_FRect  dest   = {0, 0, target->size.x, target->size.y};
@@ -674,11 +590,12 @@ void update_debug_menu(DebugMenu* data) {
 		snprintf(
 			fps_string, sizeof(fps_string),
 			"FPS: %d\nCam Pos: %" PRId64 " %" PRId64
-			"\nGameObjects loaded: %d, Updates scheduled: %d\nPlayer modules: "
+			"\nGameObjects loaded: %" PRIu64 ", Updates scheduled: %" PRIu64
+			" \nPlayer modules: "
 			"%b",
 			Eng_current_fps, Eng_std_camera.target.x / DEFAULT_FIXED_POINT,
-			Eng_std_camera.target.y / DEFAULT_FIXED_POINT, game_objects_len,
-			update_callbacks_len, (player) ? player->modules : 0
+			Eng_std_camera.target.y / DEFAULT_FIXED_POINT, game_objects.len,
+			update_callbacks.len, (player) ? player->modules : 0
 		);
 		TTF_SetTextString(data->display, fps_string, sizeof(fps_string));
 
@@ -710,23 +627,6 @@ Error Eng_create_object(
 		return true;
 	}
 
-	if(game_objects_len + 1 > game_objects_cap) {
-		GameObject* tmp = reallocarray(
-			game_objects, game_objects_cap * 2, sizeof(GameObject)
-		);
-		if(!tmp) {
-			SDL_Log(
-				CODE_ERROR "ERROR: Failed to allocate "
-						   "memory for GameObject "
-						   "queue expansion from "
-						   "%d to %d" CODE_END,
-				game_objects_cap, game_objects_cap * 2
-			);
-			return false;
-		}
-		game_objects = tmp;
-		game_objects_cap *= 2;
-	}
 	void* data = malloc(data_size);
 
 	if(!data) {
@@ -740,9 +640,11 @@ Error Eng_create_object(
 	}
 
 	memcpy(data, src, data_size);
-	game_objects[game_objects_len] = (GameObject) {type, data};
-	*new_ref                       = data;
-	game_objects_len++;
+	*new_ref                               = data;
+	GameObject just_another_useless_object = {type, data};
+
+	DynArrPush(&game_objects, just_another_useless_object);
+
 	return true;
 }
 
@@ -752,7 +654,7 @@ uint32_t target: Give uint32 to index target GameObject in
 game_objects array
  */
 Error Eng_destroy_object(uint32_t target) {
-	if(target >= game_objects_len) {
+	if(target >= game_objects.len) {
 		SDL_Log(
 			CODE_ERROR "ERROR: Tried to destroy invalid "
 					   "GameObject %d: Index out of "
@@ -762,7 +664,7 @@ Error Eng_destroy_object(uint32_t target) {
 		return true;
 	}
 
-	if(!game_objects[target].data) {
+	if(!game_objects.arr[target].data) {
 		SDL_Log(
 			CODE_ERROR "ERROR. Tried to destroy GameObject %d with "
 					   "null data" CODE_END,
@@ -770,12 +672,12 @@ Error Eng_destroy_object(uint32_t target) {
 		);
 		return true;
 	}
-	free(game_objects[target].data);
+	free(game_objects.arr[target].data);
 
-	if(target != game_objects_len - 1) {
-		game_objects[target] = game_objects[game_objects_len - 1];
+	if(target != game_objects.len - 1) {
+		game_objects.arr[target] = game_objects.arr[game_objects.len - 1];
 	}
-	game_objects_len--;
+	game_objects.len--;
 	return true;
 }
 
@@ -795,26 +697,10 @@ Error Eng_hook_update(Method func, void* data) {
 		return true;
 	}
 
-	if(update_callbacks_len + 1 > update_callbacks_cap) {
-		UpdateHook* tmp = reallocarray(
-			update_callbacks, update_callbacks_cap * 2, sizeof(UpdateHook)
-		);
-		if(!tmp) {
-			SDL_Log(
-				CODE_ERROR "ERROR: Failed to allocate "
-						   "memory for UpdateHook "
-						   "queue expansion"
-						   "from %d to %d" CODE_END,
-				update_callbacks_cap, update_callbacks_cap * 2
-			);
-			return false;
-		}
-		update_callbacks = tmp;
-		update_callbacks_cap *= 2;
-	}
+	UpdateHook update_hook = {func, data};
 
-	update_callbacks[update_callbacks_len] = (UpdateHook) {func, data};
-	update_callbacks_len++;
+	DynArrPush(&update_callbacks, update_hook);
+
 	return true;
 }
 
@@ -832,51 +718,32 @@ Error Eng_unhook_update(void* data) {
 		return true;
 	}
 
-	for(uint32_t i = 0; i < update_callbacks_len; i++) {
-		if(data == update_callbacks[i].argv) {
-			if(i != update_callbacks_len - 1) {
-				update_callbacks[i] =
-					update_callbacks[update_callbacks_len - 1];
-			}
-			update_callbacks_len--;
+	ssize_t* found_index = NULL;
 
-			if(update_callbacks_len < update_callbacks_cap >> 1) {
-				UpdateHook* tmp = reallocarray(
-					update_callbacks, update_callbacks_cap >> 1,
-					sizeof(UpdateHook)
-				);
-
-				if(!tmp) {
-					SDL_Log(
-						CODE_ERROR "ERROR: Failed to allocate memory "
-								   "for UpdateHook queue "
-								   "shrinking from %d to %d" CODE_END,
-						update_callbacks_cap, update_callbacks_cap >> 1
-					);
-					return false;
-				}
-
-				update_callbacks     = tmp;
-				update_callbacks_cap = update_callbacks_cap >> 1;
-			}
-			return true;
-		}
-	}
-	SDL_Log(
-		CODE_ERROR "ERROR: Tried to unhook invalid Update "
-				   "callback: %p" CODE_END,
-		data
+	DynArrLoop(
+		&update_callbacks,
+		if(update_callbacks.arr[i].argv == data) { *found_index = i; }
 	);
+
+	if(!found_index) {
+		SDL_Log(
+			CODE_ERROR "ERROR: Tried to unhook invalid Update "
+					   "callback: %p" CODE_END,
+			data
+		);
+		return true;
+	}
+
 	return true;
 }
 
 void* Eng_get_gameobject(uint32_t type, int32_t index) {
-	for(uint32_t i = 0; i < game_objects_len; i++) {
-		if(game_objects[i].type == type) {
+	DynArrLoop(
+		&game_objects, if(game_objects.arr[i].type == type) {
 			index--;
-			if(index < 0) return game_objects[i].data;
+			if(index < 0) return game_objects.arr[i].data;
 		}
-	}
+	);
 	SDL_Log(
 		CODE_WARN
 		"ERROR: Failed to find component of type %u at index %u" CODE_END,

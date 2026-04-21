@@ -113,30 +113,6 @@ Error Eng_hook_update(Method func, void* data);
 Error Eng_unhook_update(void* data);
 void* Eng_get_gameobject(uint32_t type, int32_t index);
 
-// Toast system
-enum ToastTypes : uint8_t {
-	TOAST_NORM,
-	TOAST_WARN,
-	TOAST_CRITICAL,
-};
-typedef struct {
-	char*    content;
-	size_t   len;
-	uint8_t  type;
-	uint64_t timestamp;
-} Toast;
-typedef struct {
-	Toast* arr;
-	size_t len;
-	size_t cap;
-} ToastArray;
-// -----------------------------------------------------------------------------
-extern ToastArray Eng_toast_queue;
-// -----------------------------------------------------------------------------
-Error Eng_push_toast(char* message, size_t len, uint8_t type);
-Error Eng_pop_toast(Toast* dest);
-Error Eng_init_toast_queue(void);
-
 // Input handling
 #define KEYS                                                                   \
 	X(W)                                                                       \
@@ -213,7 +189,6 @@ static UpdateHook* update_callbacks     = {0};
 static uint32_t    update_callbacks_len = 0;
 static uint32_t    update_callbacks_cap = DEFAULT_UPDATECALLBACK_QUEUE_CAP;
 
-ToastArray Eng_toast_queue;
 
 uint8_t    Eng_key_cache[KEY_NUM] = {0};
 SDL_FPoint Eng_mouse_pos          = {0};
@@ -389,18 +364,6 @@ Error Eng_init(void) {
 		fatal_error = true;
 		, CODE_SUCCESS "INFO: Successfully initialized DebugMenu" CODE_END,
 		CODE_ERROR "FATAL: Failed to initialize DebugMenu" CODE_END
-	);
-
-	// Try setup toast queue
-	Eng_toast_queue.arr = calloc(DEFAULT_TOASTQUEUE_SIZE, sizeof(Toast));
-	Eng_toast_queue.cap = DEFAULT_TOASTQUEUE_SIZE;
-	Eng_toast_queue.len = 0;
-	ASSERT_PREDICATE(
-		Eng_toast_queue.arr, fatal_error = true;
-		,
-		CODE_SUCCESS
-		"INFO: Successfully allocated memory for toast queue" CODE_END,
-		CODE_ERROR "FATAL: Failed to allocate memory for toast queue" CODE_END
 	);
 
 	// Arbitrary initializations
@@ -920,62 +883,6 @@ void* Eng_get_gameobject(uint32_t type, int32_t index) {
 		type, index
 	);
 	return NULL;
-}
-
-// Misc
-
-Error Eng_push_toast(char* message, size_t len, uint8_t type) {
-	if(Eng_toast_queue.len + 1 > Eng_toast_queue.cap) {
-		Toast* tmp = reallocarray(
-			Eng_toast_queue.arr, Eng_toast_queue.cap * 2, sizeof(Toast)
-		);
-		ASSERT_PREDICATE(
-			tmp, return false;
-			, CODE_SUCCESS "INFO: Successfully expanded toast queue" CODE_END,
-			CODE_ERROR "FATAL: Failed to expand toast queue" CODE_END
-		);
-		Eng_toast_queue.arr = tmp;
-		Eng_toast_queue.cap *= 2;
-	}
-
-	const size_t length = mini((len) ? len : strlen(message) + 1, 128);
-
-	Eng_toast_queue.arr[Eng_toast_queue.len] = (Toast) {
-		.content = strncpy(
-			Eng_toast_queue.arr[Eng_toast_queue.len].content, message, length
-		),
-		.len       = (length) ? length : strlen(message),
-		.type      = type,
-		.timestamp = SDL_GetTicks(),
-	};
-	Eng_toast_queue.arr[Eng_toast_queue.len].content[127] = '\0';
-	Eng_toast_queue.len++;
-
-	return true;
-}
-
-Error Eng_pop_toast(Toast* dest) {
-	if(dest) *dest = Eng_toast_queue.arr[0];
-
-	for(size_t i = 0; i < Eng_toast_queue.len - 1; i++) {
-		Eng_toast_queue.arr[i] = Eng_toast_queue.arr[i - 1];
-	}
-
-	Eng_toast_queue.len--;
-
-	if(Eng_toast_queue.len <= Eng_toast_queue.cap / 2) {
-		Toast* tmp = reallocarray(
-			Eng_toast_queue.arr, Eng_toast_queue.cap / 2, sizeof(Toast)
-		);
-		ASSERT_PREDICATE(
-			tmp, return false;
-			, CODE_SUCCESS "INFO: Successfully shrunk toast queue" CODE_END,
-			CODE_ERROR "FATAL: Failed to shrink toast queue" CODE_END
-		);
-		Eng_toast_queue.cap /= 2;
-	}
-
-	return true;
 }
 
 #endif

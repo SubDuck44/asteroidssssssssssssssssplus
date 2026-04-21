@@ -55,14 +55,6 @@ struct GameObject_Asteroid {
 Error GameObject_asteroid_create(struct GameObject_Asteroid* override);
 Error GameObject_asteroid_update(void* data, uint32_t index_of_self);
 
-// Game overlay
-struct GameObject_GameOverlay {
-	TTF_Text* toast;
-};
-// -----------------------------------------------------------------------------
-Error GameObject_gameoverlay_create(void);
-Error GameObject_gameoverlay_update(void* data, uint32_t index_of_self);
-
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
 #include <SDL3_gfx/SDL3_gfxPrimitives.h>
@@ -387,85 +379,6 @@ Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
 		renderer, TEX_ASTEROID.tex, NULL, &dest, self->rot, &origin,
 		SDL_FLIP_NONE
 	);
-
-	return true;
-}
-
-// Game overlay ================================================================
-Error GameObject_gameoverlay_create(void) {
-	struct GameObject_GameOverlay data = {
-		.toast = NULL,
-	};
-
-	struct GameObject_GameOverlay* new = NULL;
-
-	ASSERT_PREDICATE((data.toast =
-	                      TTF_CreateText(Eng_text_engine, Eng_font, "none", 0)),
-	                 return false;
-	                 ,
-	                 CODE_SUCCESS "INFO: Successfully created text object for "
-	                              "GameObject_GameOverlay" CODE_END,
-	                 CODE_ERROR "FATAL: Failed to create text object for "
-	                            "GameObject_GameOverlay" CODE_END);
-
-	TTF_SetTextWrapWidth(data.toast, 160);
-
-	ASSERT_PREDICATE(
-		Eng_create_object(
-			&data, (void**) &new, sizeof(Toast), GAMEOBJECT_GAMEOVERLAY
-		),
-		TTF_DestroyText(data.toast);
-		return false;
-		,
-		CODE_SUCCESS
-		"INFO: Successfully created GameObject gameoverlay" CODE_END,
-		CODE_ERROR "FATAL: Failed to create GameObject game overlay" CODE_END
-	);
-
-	return true;
-}
-
-Error GameObject_gameoverlay_update(void* data, uint32_t index_of_self) {
-	(void) index_of_self;
-	struct GameObject_GameOverlay* self = data;
-
-	if(Eng_toast_queue.len > 0) {
-		const float width   = 200;
-		const float height  = 100;
-		SDL_FRect   draw_at = {
-            ((float) Eng_std_camera.screensize.x / 2) - (width / 2), 20, width,
-            height
-        };
-
-		for(size_t i = 0; i < Eng_toast_queue.len; i++) {
-			SDL_Color color;
-			switch(Eng_toast_queue.arr[i].type) {
-			case TOAST_WARN:
-				color = (SDL_Color) {250, 189, 47, 255};
-				break;
-			case TOAST_CRITICAL:
-				color = (SDL_Color) {204, 36, 29, 255};
-				break;
-			default:
-				color = (SDL_Color) {69, 133, 136, 255};
-				break;
-			}
-			SDL_SetRenderDrawColor(
-				renderer, color.r, color.g, color.b, color.a
-			);
-			SDL_RenderFillRect(renderer, &draw_at);
-			TTF_SetTextString(
-				self->toast, Eng_toast_queue.arr[i].content, Eng_toast_queue.len
-			);
-			TTF_SetFontWrapAlignment(Eng_font, TTF_HORIZONTAL_ALIGN_CENTER);
-			TTF_DrawRendererText(self->toast, draw_at.x + 20, draw_at.y + 20);
-			draw_at.y += height + 20;
-
-			if(Eng_toast_queue.arr[i].timestamp + 5000 < SDL_GetTicks()) {
-				Eng_pop_toast(NULL);
-			}
-		}
-	}
 
 	return true;
 }

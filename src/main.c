@@ -15,13 +15,6 @@ int main(int argc, char* argv[]) {
 		CODE_ERROR GAMEOBJECT_CREATE_FAILURE CODE_END
 	);
 
-	ASSERT_PREDICATE(
-		GameObject_gameoverlay_create(), return SDL_APP_FAILURE;
-		, CODE_SUCCESS GAMEOBJECT_CREATE_SUCCESS CODE_END,
-		CODE_ERROR GAMEOBJECT_CREATE_FAILURE CODE_END
-	);
-
-	Eng_push_toast("uwu", 0, TOAST_CRITICAL);
 	/* LOOP */
 	while(true) {
 		if(!Eng_update_frame()) return -1;

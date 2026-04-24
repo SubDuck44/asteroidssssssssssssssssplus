@@ -437,14 +437,6 @@ Error Eng_update_frame(void) {
 		Eng_input_update(&cur_event);
 	}
 
-	if(Eng_get_key_down(KEY_W)) {
-		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-		SDL_FRect rect = {
-			50, 50, Eng_screensize.x - 100, Eng_screensize.y - 100
-		};
-		SDL_RenderRect(renderer, &rect);
-	}
-
 	// Grey background
 	SDL_SetRenderDrawColor(renderer, 39, 36, 43, 255);
 	SDL_RenderClear(renderer);

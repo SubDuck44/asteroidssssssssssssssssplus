@@ -70,44 +70,74 @@ typedef bool Error;
 
 #define DynArr(type) DynArrN(type, type##s)
 
-#define DynArrPush(array, data)                                                \
+#define DynArrExtend(array, num)                                               \
 	do {                                                                       \
-		(array)->len++;                                                        \
-		if((array)->len > (array)->cap) {                                      \
+		(array)->len += num;                                                   \
+		while((array)->cap < (array)->len) {                                   \
+			(array)->cap = (array)->cap << 1;                                  \
+		}                                                                      \
+		(array)->arr =                                                         \
+			reallocarray((array)->arr, (array)->cap, sizeof((array)->arr[0])); \
+		if(!((array)->arr)) {                                                  \
+			SDL_Log(                                                           \
+				CODE_ERROR                                                     \
+				"FATAL: Failed to allocate memory for DynArr" CODE_END         \
+			);                                                                 \
+			Eng_exit();                                                        \
+		}                                                                      \
+	} while(0)
+
+#define DynArrShrink(array, num)                                               \
+	do {                                                                       \
+		if((array)->len - num >= 0) {                                          \
+			(array)->len -= num;                                               \
+			while((array)->cap >> 1 >= (array)->len) {                         \
+				(array)->cap = (array)->cap >> 1;                              \
+			}                                                                  \
 			(array)->arr = reallocarray(                                       \
-				(array)->arr, maxi((array)->cap << 1, DEFAULT_DYNARR_CAP),     \
-				sizeof((array)->arr[0])                                        \
+				(array)->arr, (array)->cap, sizeof((array)->arr[0])            \
 			);                                                                 \
 			if(!((array)->arr)) {                                              \
-				SDL_Log(                                                       \
-					CODE_ERROR "FATAL: Failed to allocate memory for "         \
-							   "DynArr"                                        \
-				);                                                             \
+				SDL_Log(CODE_ERROR "FATAL: Failed to shrink DynArr" CODE_END); \
 				Eng_exit();                                                    \
 			}                                                                  \
-			SDL_Log(                                                           \
-				CODE_SUCCESS "INFO: Successfully expanded DynArr" CODE_END     \
-			);                                                                 \
 		}                                                                      \
+	} while(0)
+
+#define DynArrPush(array, data)                                                \
+	do {                                                                       \
+		DynArrExtend(array, 1);                                                \
 		(array)->arr[(array)->len - 1] = data;                                 \
 	} while(0)
 
-#define DynArrPop(array)                                                       \
+#define DynArrPop(array) DynArrShrink(array, 1);
+
+#define DynArrInsert(array, index, src)                                        \
 	do {                                                                       \
-		(array)->len--;                                                        \
-		if((array)->len <= (array)->cap >> 1) {                                \
-			(array)->arr = reallocarray(                                       \
-				(array)->arr, maxi((array)->cap >> 1, DEFAULT_DYNARR_CAP),     \
-				sizeof((array)->arr[0])                                        \
-			);                                                                 \
-			if(!((array)->arr)) {                                              \
-				SDL_Log(                                                       \
-					CODE_ERROR "FATAL: Failed to allocate memory for "         \
-							   "DynArr"                                        \
-				);                                                             \
-				Eng_exit();                                                    \
+		if(index > (array)->len - 1) {                                         \
+			(array)->arr[(array)->len - 1] = *src;                             \
+		} else {                                                               \
+			for(size_t i = (array)->len; i > index; i--) {                     \
+				(array)->arr[i] = (array)->arr[i - 1];                         \
 			}                                                                  \
-			SDL_Log(CODE_SUCCESS "INFO: Successfully shrunk DynArr" CODE_END); \
+			(array)->arr[index] = *src;                                        \
+		}                                                                      \
+	} while(0)
+
+#define DynArrRemove(array, index)                                             \
+	do {                                                                       \
+		if(index >= 0 && index < (array)->len) {                               \
+			SDL_Log(                                                           \
+				CODE_WARN "WARNING: Tried to remove DynArr element with "      \
+						  "index out of range" CODE_END                        \
+			);                                                                 \
+		} else {                                                               \
+			if(index != (array)->len - 1) {                                    \
+				for(size_t j = 0; j < (array)->len - 2; j++) {                 \
+					(array)->arr[j] = (array)->arr[j + 1];                     \
+				}                                                              \
+			}                                                                  \
+			DynArrPop(array);                                                  \
 		}                                                                      \
 	} while(0)
 

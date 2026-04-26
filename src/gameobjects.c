@@ -78,7 +78,7 @@ Error GameObject_player_create(void) {
 		.modules             = 3
 	};
 	struct GameObject_Player* new = NULL;
-	Error failed                  = Eng_register_hitbox(
+	Error failed                  = Eng_create_hitbox(
         self.pos, (Vector2f) {50, 50}, new, GAMEOBJECT_PLAYER, &self.hitbox,
         &Eng_std_collision_tree
     );
@@ -307,7 +307,7 @@ Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
 	}
 
 	struct GameObject_Asteroid* new = NULL;
-	Error failed                    = Eng_register_hitbox(
+	Error failed                    = Eng_create_hitbox(
         self.pos, (Vector2f) {100, 100}, new, GAMEOBJECT_ASTEROID, &self.hitbox,
         &Eng_std_collision_tree
     );

@@ -45,28 +45,30 @@ Error             Eng_update_frame(void);
 
 // Collision system
 typedef struct {
-	Vector2l pos;
-	Vector2f size;
 	void*    owner;
-	uint32_t typeof_owner;
+	uint32_t type;
+	size_t   x1;
+	size_t   x2;
+	size_t   y1;
+	size_t   y2;
 } ColRect;
-DynArrN(ColRect, ColTree);
 typedef struct {
-	ColRect* collider;
-	void*    owner;
-	uint32_t typeof_owner;
-	bool     collided;
-} ColInfo;
+	int64_t  pos;
+	ColRect* owner;
+} ColNode;
+DynArr(ColNode);
+typedef struct {
+	ColNodes x;
+	ColNodes y;
+} ColSys;
+// _____________________________________________________________________________
+extern ColSys Eng_col_sys;
 // -----------------------------------------------------------------------------
-extern ColTree Eng_std_collision_tree;
-// -----------------------------------------------------------------------------
-Error Eng_register_hitbox(
-	Vector2l pos, Vector2f size, void* owner, uint32_t typeof_owner,
-	ColRect** dest, ColTree* in
-);
-Error   Eng_unregister_hitbox(ColRect* target, ColTree* in);
-Error   Eng_update_hitbox(ColRect* target, Vector2l* pos, Vector2f* size);
-ColInfo Eng_get_collision(ColRect* target, ColTree* in);
+Error Eng_create_hitbox(ColRect* target);
+Error Eng_destroy_hitbox(ColRect* target);
+void  Eng_set_hitbox_pos(ColRect* src, Vector2l pos);
+void  Eng_move_hitbox_pos(ColRect* src, Vector2l pos);
+void  Eng_set_hitbox_scale(ColRect* src, Vector2l size);
 
 // Debug stuff
 typedef struct {
@@ -160,7 +162,7 @@ const char EMB_IOSEVKA_FONT[] = {
 #embed "../res/Iosevka-Regular.ttf"
 };
 
-ColTree Eng_std_collision_tree;
+ColSys Eng_col_sys = {0};
 
 DebugMenu Eng_std_debug_menu;
 #ifndef NDEBUG
@@ -187,7 +189,8 @@ double Eng_get_deltatime_factor(void) {
 	return last_frame_time / ((double) 1'000'000'000 / Eng_desired_fps);
 }
 
-// Control flow ================================================================
+// Control flow
+// ================================================================
 
 /* Initialize the engine, required for… well… everything in
  * it to work */
@@ -502,78 +505,68 @@ Error Eng_update_frame(void) {
 	return true;
 }
 
-// Collision system ============================================================
-Error Eng_register_hitbox(
-	Vector2l pos, Vector2f size, void* owner, uint32_t typeof_owner,
-	ColRect** dest, ColTree* in
-) {
-	ColRect data = {
-		.pos = pos, .size = size, .owner = owner, .typeof_owner = typeof_owner
+// Collision system
+// ============================================================
+Error Eng_create_hitbox(ColRect* target) {
+	DynArrExtend(&Eng_col_sys.x, 2);
+	DynArrExtend(&Eng_col_sys.y, 2);
+
+	const ColNode items[] = {
+		(ColNode) {target->x1, target},
+		(ColNode) {target->x2, target},
+		(ColNode) {target->y1, target},
+		(ColNode) {target->y2, target},
 	};
+	size_t insert_at[] = {
+		Eng_col_sys.x.len - 2,
+		Eng_col_sys.x.len,
+		Eng_col_sys.y.len - 2,
+		Eng_col_sys.y.len,
+	};
+	uint8_t item_c = 0;
 
-	DynArrPush(in, data);
-
-	*dest = &in->arr[in->len - 1];
-
-	return true;
-}
-
-Error Eng_unregister_hitbox(ColRect* target, ColTree* in) {
-	for(uint16_t i = 0; i < in->len; i++) {
-		if(&in->arr[i] == target) {
-			if(i != in->len - 1) { in->arr[i] = in->arr[in->len - 1]; }
-
-			DynArrPop(in);
-
-			break;
-		}
-	}
-	SDL_Log(
-		CODE_WARN
-		"WARNING: Could not find target ColRect %p in ColTree %p" CODE_END,
-		(void*) target, (void*) in
-	);
-
-	return true;
-}
-
-Error Eng_update_hitbox(ColRect* target, Vector2l* pos, Vector2f* size) {
-	if(pos) target->pos = *pos;
-	if(size) target->size = *size;
-	if(Eng_debug_vis) {
-		SDL_FPoint pos    = {0};
-		SDL_FRect  dest   = {0, 0, target->size.x, target->size.y};
-		SDL_FPoint origin = {0, 0};
-		Cam_transform(&target->pos, &pos, &dest, &origin, &Eng_std_camera);
-		dest.x -= dest.w / 2;
-		dest.y -= dest.h / 2;
-
-		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-		SDL_RenderRect(renderer, &dest);
-	}
-	return true;
-}
-
-ColInfo Eng_get_collision(ColRect* target, ColTree* in) {
-	for(uint16_t i = 0; i < in->len; i++) {
-		ColRect* cur = &in->arr[i];
-		if(colrect_check_collision(
-			   target->pos, target->size, cur->pos, cur->size
-		   )) {
-			ColInfo data = {
-				.collider     = cur,
-				.owner        = cur->owner,
-				.typeof_owner = cur->typeof_owner,
-				.collided     = true,
-			};
-			return data;
+	for(size_t i = 0; i < Eng_col_sys.x.len && item_c < 2; i++) {
+		if(Eng_col_sys.x.arr[i].pos > items[item_c].pos) {
+			insert_at[item_c] = i;
+			item_c++;
 		}
 	}
 
-	return (ColInfo) {0};
+	for(size_t i = 0; i < Eng_col_sys.y.len && item_c < 4; i++) {
+		if(Eng_col_sys.y.arr[i].pos > items[item_c].pos) {
+			insert_at[item_c] = i;
+			item_c++;
+		}
+	}
+
+	DynArrInsert(&Eng_col_sys.x, insert_at[0], &items[0]);
+	DynArrInsert(&Eng_col_sys.x, insert_at[1], &items[1]);
+	DynArrInsert(&Eng_col_sys.y, insert_at[2], &items[2]);
+	DynArrInsert(&Eng_col_sys.y, insert_at[3], &items[3]);
+
+	return true;
 }
 
-// Debug stuff =================================================================
+Error Eng_destroy_hitbox(ColRect* target) {
+	DynArrRemove(&Eng_col_sys.x, target->x1);
+	DynArrRemove(&Eng_col_sys.x, target->x2);
+	DynArrRemove(&Eng_col_sys.y, target->y1);
+	DynArrRemove(&Eng_col_sys.y, target->y2);
+
+	memset(target, 0, sizeof(*target));
+
+	return true;
+}
+
+void Eng_set_hitbox_pos(ColRect* src, Vector2l pos) {
+	// TODO For later
+}
+
+void Eng_move_hitbox_pos(ColRect* src, Vector2l pos);
+void Eng_set_hitbox_scale(ColRect* src, Vector2l size);
+
+// Debug stuff
+// =================================================================
 void update_debug_menu(DebugMenu* data) {
 	if(Eng_debug_vis) {
 		char                      fps_string[256] = {0};

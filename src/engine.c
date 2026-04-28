@@ -558,9 +558,47 @@ Error Eng_destroy_hitbox(ColRect* target) {
 	return true;
 }
 
-void Eng_set_hitbox_pos(ColRect* src, Vector2l pos) {
-	// TODO For later
+static size_t
+sort_hitbox(size_t index, const int64_t new_val, ColNodes* target) {
+	if(index < 0 || index >= target->len) {
+		SDL_Log(
+			CODE_WARN "WARNING: Index out of bounds in sort_hitbox" CODE_END
+		);
+		return index;
+	}
+	if(new_val == target->arr[index].pos) return index;
+
+	if(new_val < target->arr[index].pos) {
+		for(; index > 0; index--) {
+			ColNode* a = &target->arr[index];
+			ColNode* b = &target->arr[index - 1];
+			ColNode  cache;
+			if(b->pos > a->pos) {
+				cache = *a;
+				*a    = *b;
+				*b    = cache;
+				continue;
+			}
+			return index;
+		}
+	} else {
+		for(; index < target->len - 1; index++) {
+			ColNode* a = &target->arr[index];
+			ColNode* b = &target->arr[index + 1];
+			ColNode  cache;
+			if(b->pos < a->pos) {
+				cache = *a;
+				*a    = *b;
+				*b    = cache;
+				continue;
+			}
+			return index;
+		}
+	}
+	return index;
 }
+
+void Eng_set_hitbox_pos(ColRect* src, Vector2l pos) {}
 
 void Eng_move_hitbox_pos(ColRect* src, Vector2l pos);
 void Eng_set_hitbox_scale(ColRect* src, Vector2l size);

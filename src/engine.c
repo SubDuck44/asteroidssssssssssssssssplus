@@ -558,17 +558,15 @@ Error Eng_destroy_hitbox(ColRect* target) {
 	return true;
 }
 
-static size_t
-sort_hitbox(size_t index, const int64_t new_val, ColNodes* target) {
+static size_t sort_hitbox(size_t index, ColNodes* target) {
 	if(index < 0 || index >= target->len) {
 		SDL_Log(
 			CODE_WARN "WARNING: Index out of bounds in sort_hitbox" CODE_END
 		);
 		return index;
 	}
-	if(new_val == target->arr[index].pos) return index;
 
-	if(new_val < target->arr[index].pos) {
+	if(target->arr[index].pos < target->arr[index].pos) {
 		for(; index > 0; index--) {
 			ColNode* a = &target->arr[index];
 			ColNode* b = &target->arr[index - 1];
@@ -598,7 +596,26 @@ sort_hitbox(size_t index, const int64_t new_val, ColNodes* target) {
 	return index;
 }
 
-void Eng_set_hitbox_pos(ColRect* src, Vector2l pos) {}
+void Eng_set_hitbox_pos(ColRect* src, Vector2l pos) {
+	if(Eng_col_sys.x.arr[src->x1].pos == pos.x &&
+	   Eng_col_sys.x.arr[src->y1].pos == pos.y)
+		return;
+
+	Eng_col_sys.x.arr[src->x1].pos = pos.x;
+	Eng_col_sys.x.arr[src->x2].pos =
+		Eng_col_sys.x.arr[src->x1].pos +
+		(Eng_col_sys.x.arr[src->x2].pos - Eng_col_sys.x.arr[src->x1].pos);
+
+	Eng_col_sys.y.arr[src->y1].pos = pos.y;
+	Eng_col_sys.y.arr[src->y2].pos =
+		Eng_col_sys.y.arr[src->y1].pos +
+		(Eng_col_sys.y.arr[src->x2].pos - Eng_col_sys.y.arr[src->y1].pos);
+
+	sort_hitbox(src->x1, &Eng_col_sys.x);
+	sort_hitbox(src->x2, &Eng_col_sys.x);
+	sort_hitbox(src->y1, &Eng_col_sys.y);
+	sort_hitbox(src->y2, &Eng_col_sys.y);
+}
 
 void Eng_move_hitbox_pos(ColRect* src, Vector2l pos);
 void Eng_set_hitbox_scale(ColRect* src, Vector2l size);

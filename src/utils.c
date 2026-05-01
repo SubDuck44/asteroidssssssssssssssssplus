@@ -89,18 +89,15 @@ typedef bool Error;
 
 #define DynArrShrink(array, num)                                               \
 	do {                                                                       \
-		if((array)->len - num >= 0) {                                          \
-			(array)->len -= num;                                               \
-			while((array)->cap >> 1 >= (array)->len) {                         \
-				(array)->cap = (array)->cap >> 1;                              \
-			}                                                                  \
-			(array)->arr = reallocarray(                                       \
-				(array)->arr, (array)->cap, sizeof((array)->arr[0])            \
-			);                                                                 \
-			if(!((array)->arr)) {                                              \
-				SDL_Log(CODE_ERROR "FATAL: Failed to shrink DynArr" CODE_END); \
-				Eng_exit();                                                    \
-			}                                                                  \
+		(array)->len -= num;                                                   \
+		while((array)->cap >> 1 >= (array)->len) {                             \
+			(array)->cap = (array)->cap >> 1;                                  \
+		}                                                                      \
+		(array)->arr =                                                         \
+			reallocarray((array)->arr, (array)->cap, sizeof((array)->arr[0])); \
+		if(!((array)->arr)) {                                                  \
+			SDL_Log(CODE_ERROR "FATAL: Failed to shrink DynArr" CODE_END);     \
+			Eng_exit();                                                        \
 		}                                                                      \
 	} while(0)
 
@@ -126,7 +123,7 @@ typedef bool Error;
 
 #define DynArrRemove(array, index)                                             \
 	do {                                                                       \
-		if(index >= 0 && index < (array)->len) {                               \
+		if(index > (array)->len) {                                             \
 			SDL_Log(                                                           \
 				CODE_WARN "WARNING: Tried to remove DynArr element with "      \
 						  "index out of range" CODE_END                        \

@@ -472,19 +472,6 @@ Error Eng_update_frame(void) {
 
 	SDL_RenderPresent(renderer);
 
-	// Stop frame timer
-	last_frame_time = SDL_GetTicksNS() - frametime_start;
-
-	const uint64_t desired_frametime = 1'000'000'000 / Eng_desired_fps;
-	if(last_frame_time < desired_frametime) {
-		const uint64_t frame_diff = desired_frametime - last_frame_time;
-		SDL_DelayPrecise(frame_diff);
-		last_frame_time += frame_diff;
-	}
-
-	Eng_current_fps =
-		(((double) (1'000'000'000) / last_frame_time) + Eng_current_fps) / 2;
-
 	// Process DebugRepl
 	if(SDL_TryWaitSemaphore(Repl_repl.semaphore)) {
 		switch(Repl_repl.command) {
@@ -506,6 +493,19 @@ Error Eng_update_frame(void) {
 
 	// Clear bitflags on input key_cache
 	Eng_input_deferred();
+
+	// Stop frame timer
+	last_frame_time = SDL_GetTicksNS() - frametime_start;
+
+	const uint64_t desired_frametime = 1'000'000'000 / Eng_desired_fps;
+	if(last_frame_time < desired_frametime) {
+		const uint64_t frame_diff = desired_frametime - last_frame_time;
+		SDL_DelayPrecise(frame_diff);
+		last_frame_time += frame_diff;
+	}
+
+	Eng_current_fps =
+		(((double) (1'000'000'000) / last_frame_time) + Eng_current_fps) / 2;
 
 	return true;
 }

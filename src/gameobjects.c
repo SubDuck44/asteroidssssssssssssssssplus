@@ -37,7 +37,7 @@ struct GameObject_Player {
 	float    force_main_thruster;
 	float    force_rcs_thrusters;
 	float    force_rot;
-	ColRect* hitbox;
+	ColRect  hitbox;
 	uint8_t  modules;
 };
 // -----------------------------------------------------------------------------
@@ -78,18 +78,7 @@ Error GameObject_player_create(void) {
 		.modules             = 3
 	};
 	struct GameObject_Player* new = NULL;
-	Error failed                  = Eng_create_hitbox(
-        self.pos, (Vector2f) {50, 50}, new, GAMEOBJECT_PLAYER, &self.hitbox,
-        &Eng_std_collision_tree
-    );
-	ASSERT_PREDICATE(
-		failed == true, return false;
-		,
-		CODE_SUCCESS "INFO: Successfully registered hitbox for GameObject "
-					 "player" CODE_END,
-		CODE_ERROR
-		"FATAL: Failed to register hitbox for GameObject player" CODE_END
-	);
+
 	ASSERT_PREDICATE(
 		Eng_create_object(
 			&self, (void*) &new, sizeof(struct GameObject_Player),
@@ -107,6 +96,9 @@ Error GameObject_player_create(void) {
 		CODE_ERROR "FATAL: Failed to hook update callback for GameObject "
 				   "player" CODE_END
 	);
+
+	Eng_create_hitbox(&new->hitbox, new->pos, (SDL_FPoint) {50.0f, 50.0f});
+
 	return true;
 }
 
@@ -155,10 +147,14 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	   (self->modules ^ (1 << PLAYERMODULE_ANTENNA)) > self->modules)
 		self->modules ^= (1 << PLAYERMODULE_CLAW);
 
+	// Set own position
 	self->pos =
 		Vec2l_add_Vec2f(self->pos, Vec2f_scale(self->vel, DEFAULT_FIXED_POINT));
 	self->rot             = WRAP_COMPASS((int) (self->rot + self->ang_vel));
 	Eng_std_camera.target = self->pos;
+
+	// Set hitbox
+	Eng_set_hitbox_pos(&self->hitbox, self->pos);
 
 	SDL_FRect  player_rect   = (SDL_FRect) {0, 0, 50, 50};
 	SDL_FPoint player_origin = {25, 25};
@@ -167,14 +163,15 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 		&self->pos, &player_ctr, &player_rect, &player_origin, &Eng_std_camera
 	);
 
-	if(Eng_update_hitbox(self->hitbox, &self->pos, NULL) == false) return false;
-
 	// Draw player
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
 	SDL_RenderTextureRotated(
 		renderer, TEX_PLAYER.tex, NULL, &player_rect, self->rot, &player_origin,
 		SDL_FLIP_NONE
 	);
+
+	// Draw hitbox
+	Eng_draw_hitbox(&self->hitbox);
 
 	// Draw player modules
 	if(self->modules & (1 << PLAYERMODULE_SOLAR)) {
@@ -307,18 +304,7 @@ Error GameObject_asteroid_create(struct GameObject_Asteroid* override) {
 	}
 
 	struct GameObject_Asteroid* new = NULL;
-	Error failed                    = Eng_create_hitbox(
-        self.pos, (Vector2f) {100, 100}, new, GAMEOBJECT_ASTEROID, &self.hitbox,
-        &Eng_std_collision_tree
-    );
-	ASSERT_PREDICATE(
-		failed, return false;
-		,
-		CODE_SUCCESS "INFO: Successfully registered hitbox for GameObject "
-					 "asteroid" CODE_END,
-		CODE_ERROR
-		"FATAL: Failed to register hitbox for GameObject asteroid" CODE_END
-	);
+
 	ASSERT_PREDICATE(Eng_create_object(
 						 (override) ? override : &self, (void*) &new,
 						 sizeof(struct GameObject_Asteroid), GAMEOBJECT_ASTEROID
@@ -353,27 +339,11 @@ Error GameObject_asteroid_update(void* data, uint32_t index_of_self) {
 	);
 	self->rot += self->ang_vel * deltatime;
 
-	ColInfo col = Eng_get_collision(self->hitbox, &Eng_std_collision_tree);
-	if(col.collided && col.typeof_owner == GAMEOBJECT_ASTEROID) {
-		self->vel = Vec2f_rotate(
-			self->vel,
-			Vec2f_angle_to(
-				FPoint_to_Vec2f(
-					Cam_world_to_screen(col.collider->pos, &Eng_std_camera)
-				),
-				FPoint_to_Vec2f(Cam_world_to_screen(self->pos, &Eng_std_camera))
-			)
-		);
-	}
-
 	SDL_FPoint screen_pos = {0};
 	SDL_FRect  dest       = {0, 0, 100, 100};
 	SDL_FPoint origin     = {50.0f, 50.0f};
 
 	Cam_transform(&self->pos, &screen_pos, &dest, &origin, &Eng_std_camera);
-
-	Vector2f size = (Vector2f) {100, 100};
-	Eng_update_hitbox(self->hitbox, &self->pos, &size);
 
 	// Draw
 	SDL_RenderTextureRotated(

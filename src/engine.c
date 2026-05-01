@@ -44,17 +44,21 @@ void              Eng_input_deferred();
 Error             Eng_update_frame(void);
 
 // Collision system
+enum COLRECT_CORNERS : uint8_t {
+	TOP_LEFT,
+	TOP_RIGHT,
+	BOTTOM_LEFT,
+	BOTTOM_RIGHT,
+};
 typedef struct {
-	void*    owner;
-	uint32_t type;
-	size_t   x1;
-	size_t   x2;
-	size_t   y1;
-	size_t   y2;
+	void*                owner;
+	uint32_t             type;
+	enum COLRECT_CORNERS corners[4];
 } ColRect;
 typedef struct {
-	int64_t  pos;
-	ColRect* owner;
+	enum COLRECT_CORNERS type;
+	int64_t              pos;
+	ColRect*             owner;
 } ColNode;
 DynArr(ColNode);
 typedef struct {
@@ -64,11 +68,12 @@ typedef struct {
 // _____________________________________________________________________________
 extern ColSys Eng_col_sys;
 // -----------------------------------------------------------------------------
-Error Eng_create_hitbox(ColRect* target);
-Error Eng_destroy_hitbox(ColRect* target);
-void  Eng_set_hitbox_pos(ColRect* src, Vector2l pos);
-void  Eng_move_hitbox_pos(ColRect* src, Vector2l pos);
-void  Eng_set_hitbox_scale(ColRect* src, Vector2l size);
+void Eng_create_hitbox(
+	ColRect* target, const Vector2l pos, const SDL_FPoint size
+);
+void Eng_destroy_hitbox(ColRect* target);
+void Eng_set_hitbox_pos(ColRect* src, Vector2l pos);
+void Eng_draw_hitbox(ColRect* src);
 
 // Debug stuff
 typedef struct {
@@ -507,118 +512,159 @@ Error Eng_update_frame(void) {
 
 // Collision system
 // ============================================================
-Error Eng_create_hitbox(ColRect* target) {
-	DynArrExtend(&Eng_col_sys.x, 2);
-	DynArrExtend(&Eng_col_sys.y, 2);
-
-	const ColNode items[] = {
-		(ColNode) {target->x1, target},
-		(ColNode) {target->x2, target},
-		(ColNode) {target->y1, target},
-		(ColNode) {target->y2, target},
-	};
-	size_t insert_at[] = {
-		Eng_col_sys.x.len - 2,
-		Eng_col_sys.x.len,
-		Eng_col_sys.y.len - 2,
-		Eng_col_sys.y.len,
-	};
-	uint8_t item_c = 0;
-
-	for(size_t i = 0; i < Eng_col_sys.x.len && item_c < 2; i++) {
-		if(Eng_col_sys.x.arr[i].pos > items[item_c].pos) {
-			insert_at[item_c] = i;
-			item_c++;
-		}
-	}
-
-	for(size_t i = 0; i < Eng_col_sys.y.len && item_c < 4; i++) {
-		if(Eng_col_sys.y.arr[i].pos > items[item_c].pos) {
-			insert_at[item_c] = i;
-			item_c++;
-		}
-	}
-
-	DynArrInsert(&Eng_col_sys.x, insert_at[0], &items[0]);
-	DynArrInsert(&Eng_col_sys.x, insert_at[1], &items[1]);
-	DynArrInsert(&Eng_col_sys.y, insert_at[2], &items[2]);
-	DynArrInsert(&Eng_col_sys.y, insert_at[3], &items[3]);
-
-	return true;
-}
-
-Error Eng_destroy_hitbox(ColRect* target) {
-	DynArrRemove(&Eng_col_sys.x, target->x1);
-	DynArrRemove(&Eng_col_sys.x, target->x2);
-	DynArrRemove(&Eng_col_sys.y, target->y1);
-	DynArrRemove(&Eng_col_sys.y, target->y2);
-
-	memset(target, 0, sizeof(*target));
-
-	return true;
-}
-
-static size_t sort_hitbox(size_t index, ColNodes* target) {
-	if(index < 0 || index >= target->len) {
+static size_t sort_hitbox(size_t index, const ColNodes* target) {
+	if(index >= target->len) {
 		SDL_Log(
 			CODE_WARN "WARNING: Index out of bounds in sort_hitbox" CODE_END
 		);
 		return index;
 	}
 
-	if(target->arr[index].pos < target->arr[index].pos) {
-		for(; index > 0; index--) {
-			ColNode* a = &target->arr[index];
-			ColNode* b = &target->arr[index - 1];
-			ColNode  cache;
-			if(b->pos > a->pos) {
-				cache = *a;
-				*a    = *b;
-				*b    = cache;
-				continue;
-			}
-			return index;
+	if(index == 0) goto up;
+	if(index == target->len - 1) goto down;
+	if(target->arr[index - 1].pos > target->arr[index].pos) goto down;
+	if(target->arr[index + 1].pos < target->arr[index].pos) goto up;
+	SDL_Log(
+		CODE_WARN "WARNING: Something fucked during colrect sorting" CODE_END
+	);
+	return index;
+
+up:
+	while(index < target->len) {
+		ColNode* at_i    = &target->arr[index];
+		ColNode* after_i = &target->arr[index + 1];
+		ColNode  buffer  = {0};
+		if(after_i->pos >= at_i->pos) {
+			return index; // Found right position, return index
 		}
-	} else {
-		for(; index < target->len - 1; index++) {
-			ColNode* a = &target->arr[index];
-			ColNode* b = &target->arr[index + 1];
-			ColNode  cache;
-			if(b->pos < a->pos) {
-				cache = *a;
-				*a    = *b;
-				*b    = cache;
-				continue;
-			}
-			return index;
+		// Swap items
+		after_i->owner->corners[after_i->type] = index;
+		at_i->owner->corners[at_i->type]       = index + 1;
+		buffer                                 = *at_i;
+		*at_i                                  = *after_i;
+		*after_i                               = buffer;
+		index++;
+	}
+	return index;
+
+down:
+	while(index >= 1) {
+		ColNode* at_i     = &target->arr[index];
+		ColNode* before_i = &target->arr[index - 1];
+		ColNode  buffer   = {0};
+		if(before_i->pos <= at_i->pos) {
+			return index; // Found right position, return index
 		}
+		// Swap items
+		before_i->owner->corners[before_i->type] = index;
+		at_i->owner->corners[at_i->type]         = index - 1;
+		buffer                                   = *at_i;
+		*at_i                                    = *before_i;
+		*before_i                                = buffer;
+		index--;
 	}
 	return index;
 }
 
-void Eng_set_hitbox_pos(ColRect* src, Vector2l pos) {
-	if(Eng_col_sys.x.arr[src->x1].pos == pos.x &&
-	   Eng_col_sys.x.arr[src->y1].pos == pos.y)
-		return;
+void Eng_create_hitbox(
+	ColRect* target, const Vector2l pos, const SDL_FPoint size
+) {
+	// Make space for two new elements in each array (2 edges * 2 dimensinos)
+	DynArrExtend(&Eng_col_sys.x, 2);
+	DynArrExtend(&Eng_col_sys.y, 2);
 
-	Eng_col_sys.x.arr[src->x1].pos = pos.x;
-	Eng_col_sys.x.arr[src->x2].pos =
-		Eng_col_sys.x.arr[src->x1].pos +
-		(Eng_col_sys.x.arr[src->x2].pos - Eng_col_sys.x.arr[src->x1].pos);
+	// Initialize additional space to zero (so the sort function will sort them
+	// down)
+	memset(&Eng_col_sys.x.arr[Eng_col_sys.x.len - 2], 0, sizeof(ColNode) * 2);
+	memset(&Eng_col_sys.y.arr[Eng_col_sys.y.len - 2], 0, sizeof(ColNode) * 2);
 
-	Eng_col_sys.y.arr[src->y1].pos = pos.y;
-	Eng_col_sys.y.arr[src->y2].pos =
-		Eng_col_sys.y.arr[src->y1].pos +
-		(Eng_col_sys.y.arr[src->x2].pos - Eng_col_sys.y.arr[src->y1].pos);
+#define MAKE_COLNODE(x_or_y, pos, corner_type, offset)                         \
+	do {                                                                       \
+		Eng_col_sys.x_or_y.arr[Eng_col_sys.x_or_y.len - 1 - offset] =          \
+			(ColNode) {corner_type, (pos) * DEFAULT_FIXED_POINT, target};      \
+		target->corners[corner_type] = sort_hitbox(                            \
+			Eng_col_sys.x_or_y.len - 1 - offset, &Eng_col_sys.x_or_y           \
+		);                                                                     \
+	} while(0)
 
-	sort_hitbox(src->x1, &Eng_col_sys.x);
-	sort_hitbox(src->x2, &Eng_col_sys.x);
-	sort_hitbox(src->y1, &Eng_col_sys.y);
-	sort_hitbox(src->y2, &Eng_col_sys.y);
+	MAKE_COLNODE(x, pos.x, TOP_LEFT, 1);
+	MAKE_COLNODE(x, pos.x + size.x, TOP_RIGHT, 0);
+	MAKE_COLNODE(y, pos.y, BOTTOM_LEFT, 1);
+	MAKE_COLNODE(y, pos.y + size.y, BOTTOM_RIGHT, 0);
+#undef MAKE_COLNODE
 }
 
-void Eng_move_hitbox_pos(ColRect* src, Vector2l pos);
-void Eng_set_hitbox_scale(ColRect* src, Vector2l size);
+void Eng_destroy_hitbox(ColRect* target) {
+	Eng_col_sys.x.arr[target->corners[0]].owner = NULL;
+	Eng_col_sys.x.arr[target->corners[1]].owner = NULL;
+	Eng_col_sys.y.arr[target->corners[2]].owner = NULL;
+	Eng_col_sys.y.arr[target->corners[3]].owner = NULL;
+
+	size_t  index = target->corners[TOP_LEFT];
+	uint8_t ahead = 1;
+	while(index < Eng_col_sys.x.len - 2 && ahead < 3) {
+		Eng_col_sys.x.arr[index] = Eng_col_sys.x.arr[index + ahead];
+		if(Eng_col_sys.x.arr[index].owner == NULL) ahead++;
+		index++;
+	}
+
+	target->owner = NULL;
+}
+
+void Eng_set_hitbox_pos(ColRect* src, Vector2l pos) {
+	SDL_Log(
+		"Current position is: %d, %d, %d, %d",
+		Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos,
+		Eng_col_sys.x.arr[src->corners[TOP_RIGHT]].pos,
+		Eng_col_sys.y.arr[src->corners[BOTTOM_LEFT]].pos,
+		Eng_col_sys.y.arr[src->corners[BOTTOM_RIGHT]]
+	);
+#define GET_CORNER(x_or_y, top_or_bottom)                                      \
+	(Eng_col_sys.x_or_y.arr[src->corners[top_or_bottom##_RIGHT]].pos -         \
+	 Eng_col_sys.x_or_y.arr[src->corners[top_or_bottom##_LEFT]].pos) +         \
+		pos.x_or_y
+#define SET_COLNODE(x_or_y, corner, val)                                       \
+	do {                                                                       \
+		Eng_col_sys.x_or_y.arr[src->corners[corner]].pos = (val);              \
+		src->corners[corner] =                                                 \
+			sort_hitbox(src->corners[corner], &Eng_col_sys.x_or_y);            \
+	} while(0)
+
+	SET_COLNODE(x, TOP_RIGHT, GET_CORNER(x, TOP));
+	SET_COLNODE(x, TOP_LEFT, pos.x);
+	SET_COLNODE(y, BOTTOM_RIGHT, GET_CORNER(y, BOTTOM));
+	SET_COLNODE(y, BOTTOM_LEFT, pos.y);
+#undef GET_CORNER
+#undef SET_COLNODE
+}
+
+void Eng_draw_hitbox(ColRect* src) {
+	if(!Eng_debug_vis) return;
+
+#define GET_POS(x_or_y, top_or_bottom)                                         \
+	((Eng_col_sys.x_or_y.arr[src->corners[top_or_bottom##_RIGHT]].pos -        \
+	  Eng_col_sys.x_or_y.arr[src->corners[top_or_bottom##_LEFT]].pos) /        \
+	 DEFAULT_FIXED_POINT)
+
+	Vector2l world_pos = {
+		Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos,
+		Eng_col_sys.x.arr[src->corners[BOTTOM_LEFT]].pos
+	};
+	SDL_Log("World pos: %d, %d", world_pos.x, world_pos.y);
+
+	SDL_FPoint screen_pos = {0};
+
+	Vector2l size = {GET_POS(x, TOP), GET_POS(y, BOTTOM)};
+
+	SDL_FPoint origin = {size.x >> 1, size.y >> 1};
+
+	SDL_FRect dest = {0, 0, size.x, size.y};
+
+	Cam_transform(&world_pos, &screen_pos, &dest, &origin, &Eng_std_camera);
+
+	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+	SDL_RenderRect(renderer, &dest);
+}
 
 // Debug stuff
 // =================================================================

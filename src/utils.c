@@ -74,7 +74,7 @@ typedef bool Error;
 	do {                                                                       \
 		(array)->len += num;                                                   \
 		while((array)->cap < (array)->len) {                                   \
-			(array)->cap = (array)->cap << 1;                                  \
+			(array)->cap = maxi((array)->cap << 1, DEFAULT_DYNARR_CAP);        \
 		}                                                                      \
 		(array)->arr =                                                         \
 			reallocarray((array)->arr, (array)->cap, sizeof((array)->arr[0])); \

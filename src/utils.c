@@ -183,24 +183,6 @@ Vector2l Vec2l_force(int64_t magnitude, int64_t rotation);
 int64_t  Vec2l_length(Vector2l a);
 double   Vec2l_get_distance(Vector2l from, Vector2l to);
 
-// Camera/transform system
-#define DEFAULT_COLLGRID_CELLSIZE 1024
-#define DEFAULT_FIXED_POINT 4194304
-
-typedef struct {
-	Vector2l  target;
-	float     zoom;
-	int8_t    zoom_factor;
-	SDL_Point screensize;
-} Camera;
-// -----------------------------------------------------------------------------
-SDL_FPoint Cam_world_to_screen(Vector2l target, Camera* cam);
-Vector2l   Cam_screen_to_world(SDL_FPoint target, Camera* cam);
-void       Cam_transform(
-		  Vector2l* world_pos, SDL_FPoint* screen_pos, SDL_FRect* dest,
-		  SDL_FPoint* origin, Camera* cam
-	  );
-
 // Vector2 math
 typedef struct {
 	int32_t x;
@@ -230,6 +212,32 @@ float      FPoint_angle_to(SDL_FPoint from, SDL_FPoint to);
 SDL_FPoint FPoint_force(float magnitude, float rotation);
 float      FPoint_length(SDL_FPoint a);
 Vector2f   FPoint_to_Vec2f(SDL_FPoint a);
+
+// Camera/transform system
+#define DEFAULT_COLLGRID_CELLSIZE 1024
+#define DEFAULT_FIXED_POINT 4194304
+
+typedef struct {
+	Vector2l   pos;
+	SDL_FPoint size;
+	SDL_FPoint ctr;
+	double     rot;
+} Transform;
+typedef struct {
+	Vector2l  target;
+	float     zoom;
+	int8_t    zoom_factor;
+	SDL_Point screensize;
+} Camera;
+// -----------------------------------------------------------------------------
+#define SET_TRANS_POS_BY_CTR(tf, vec2l)                                        \
+	do {                                                                       \
+		(tf).pos.x = (vec2l).x - (((tf).size.x / 2) * DEFAULT_FIXED_POINT);    \
+		(tf).pos.y = (vec2l).y - (((tf).size.y / 2) * DEFAULT_FIXED_POINT);    \
+	} while(0)
+SDL_FPoint Cam_world_to_screen(Vector2l target, Camera* cam);
+Vector2l   Cam_screen_to_world(SDL_FPoint target, Camera* cam);
+SDL_FRect  Cam_transform_rect(Transform* src, Camera* cam, SDL_FPoint* origin);
 
 // Misc
 double  clamp(double min, double max, double val);
@@ -413,6 +421,7 @@ Vector2f FPoint_to_Vec2f(SDL_FPoint a) {
 }
 
 // Camera/transform system =====================================================
+
 SDL_FPoint Cam_world_to_screen(Vector2l target, Camera* cam) {
 	int64_t diff_x = (target.x - cam->target.x) / DEFAULT_FIXED_POINT;
 	int64_t diff_y = (target.y - cam->target.y) / DEFAULT_FIXED_POINT;
@@ -436,23 +445,22 @@ Vector2l Cam_screen_to_world(SDL_FPoint target, Camera* cam) {
 	return (Vector2l) {world_x, world_y};
 }
 
-void Cam_transform(
-	Vector2l* world_pos, SDL_FPoint* screen_pos, SDL_FRect* dest,
-	SDL_FPoint* origin, Camera* cam
-) {
-	SDL_FPoint screen_origin = Cam_world_to_screen(*world_pos, cam);
+SDL_FRect Cam_transform_rect(Transform* src, Camera* cam, SDL_FPoint* origin) {
+	const SDL_FPoint position = Cam_world_to_screen(src->pos, cam);
 
-	float dest_w = dest->w * cam->zoom;
-	float dest_h = dest->h * cam->zoom;
+	const SDL_FPoint size = {
+		(int64_t) (src->size.x / DEFAULT_FIXED_POINT) * cam->zoom,
+		(int64_t) (src->size.y / DEFAULT_FIXED_POINT) * cam->zoom
+	};
 
-	screen_origin = FPoint_add(screen_origin, (SDL_FPoint) {dest->x, dest->y});
+	if(origin) {
+		*origin = (SDL_FPoint) {
+			(int64_t) (src->ctr.x / DEFAULT_FIXED_POINT) * cam->zoom,
+			(int64_t) (src->ctr.y / DEFAULT_FIXED_POINT) * cam->zoom
+		};
+	}
 
-	*screen_pos = screen_origin;
-
-	*origin = (SDL_FPoint) {origin->x * cam->zoom, origin->y * cam->zoom};
-
-	*dest = (SDL_FRect) {screen_origin.x - origin->x,
-	                     screen_origin.y - origin->y, dest_w, dest_h};
+	return (SDL_FRect) {position.x, position.y, size.x, size.y};
 }
 
 // Vector2 math

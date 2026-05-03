@@ -68,9 +68,7 @@ typedef struct {
 // _____________________________________________________________________________
 extern ColSys Eng_col_sys;
 // -----------------------------------------------------------------------------
-void Eng_create_hitbox(
-	ColRect* target, const Vector2l pos, const SDL_FPoint size
-);
+void Eng_create_hitbox(ColRect* dest, Transform* src);
 void Eng_destroy_hitbox(ColRect* target);
 void Eng_set_hitbox_pos(ColRect* src, Vector2l pos);
 void Eng_draw_hitbox(ColRect* src);
@@ -566,9 +564,7 @@ down:
 	return index;
 }
 
-void Eng_create_hitbox(
-	ColRect* target, const Vector2l pos, const SDL_FPoint size
-) {
+void Eng_create_hitbox(ColRect* dest, Transform* src) {
 	// Make space for two new elements in each array (2 edges * 2 dimensinos)
 	DynArrExtend(&Eng_col_sys.x, 2);
 	DynArrExtend(&Eng_col_sys.y, 2);
@@ -581,16 +577,16 @@ void Eng_create_hitbox(
 #define MAKE_COLNODE(x_or_y, pos, corner_type, offset)                         \
 	do {                                                                       \
 		Eng_col_sys.x_or_y.arr[Eng_col_sys.x_or_y.len - 1 - offset] =          \
-			(ColNode) {corner_type, (pos) * DEFAULT_FIXED_POINT, target};      \
-		target->corners[corner_type] = sort_hitbox(                            \
+			(ColNode) {corner_type, (pos) * DEFAULT_FIXED_POINT, dest};        \
+		dest->corners[corner_type] = sort_hitbox(                              \
 			Eng_col_sys.x_or_y.len - 1 - offset, &Eng_col_sys.x_or_y           \
 		);                                                                     \
 	} while(0)
 
-	MAKE_COLNODE(x, pos.x, TOP_LEFT, 1);
-	MAKE_COLNODE(x, pos.x + size.x, TOP_RIGHT, 0);
-	MAKE_COLNODE(y, pos.y, BOTTOM_LEFT, 1);
-	MAKE_COLNODE(y, pos.y + size.y, BOTTOM_RIGHT, 0);
+	MAKE_COLNODE(x, src->pos.x, TOP_LEFT, 1);
+	MAKE_COLNODE(x, src->pos.x + src->size.x, TOP_RIGHT, 0);
+	MAKE_COLNODE(y, src->pos.y, BOTTOM_LEFT, 1);
+	MAKE_COLNODE(y, src->pos.y + src->size.y, BOTTOM_RIGHT, 0);
 #undef MAKE_COLNODE
 }
 
@@ -619,48 +615,38 @@ void Eng_set_hitbox_pos(ColRect* src, Vector2l pos) {
 		Eng_col_sys.y.arr[src->corners[BOTTOM_LEFT]].pos,
 		Eng_col_sys.y.arr[src->corners[BOTTOM_RIGHT]]
 	);
-#define GET_CORNER(x_or_y, top_or_bottom)                                      \
-	(Eng_col_sys.x_or_y.arr[src->corners[top_or_bottom##_RIGHT]].pos -         \
-	 Eng_col_sys.x_or_y.arr[src->corners[top_or_bottom##_LEFT]].pos) +         \
-		pos.x_or_y
-#define SET_COLNODE(x_or_y, corner, val)                                       \
-	do {                                                                       \
-		Eng_col_sys.x_or_y.arr[src->corners[corner]].pos = (val);              \
-		src->corners[corner] =                                                 \
-			sort_hitbox(src->corners[corner], &Eng_col_sys.x_or_y);            \
-	} while(0)
 
-	SET_COLNODE(x, TOP_RIGHT, GET_CORNER(x, TOP));
-	SET_COLNODE(x, TOP_LEFT, pos.x);
-	SET_COLNODE(y, BOTTOM_RIGHT, GET_CORNER(y, BOTTOM));
-	SET_COLNODE(y, BOTTOM_LEFT, pos.y);
-#undef GET_CORNER
-#undef SET_COLNODE
+	const int64_t width = Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos -
+	                      Eng_col_sys.x.arr[src->corners[TOP_RIGHT]].pos;
+	const int64_t height = Eng_col_sys.x.arr[src->corners[BOTTOM_LEFT]].pos -
+	                       Eng_col_sys.x.arr[src->corners[BOTTOM_RIGHT]].pos;
+
+	Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos     = pos.x;
+	Eng_col_sys.x.arr[src->corners[TOP_RIGHT]].pos    = pos.x + width;
+	Eng_col_sys.y.arr[src->corners[BOTTOM_LEFT]].pos  = pos.y;
+	Eng_col_sys.y.arr[src->corners[BOTTOM_RIGHT]].pos = pos.y + height;
+
+	src->corners[TOP_LEFT] =
+		sort_hitbox(src->corners[TOP_LEFT], &Eng_col_sys.x);
+	src->corners[TOP_RIGHT] =
+		sort_hitbox(src->corners[TOP_LEFT], &Eng_col_sys.x);
+	src->corners[BOTTOM_LEFT] =
+		sort_hitbox(src->corners[BOTTOM_RIGHT], &Eng_col_sys.y);
+	src->corners[BOTTOM_RIGHT] =
+		sort_hitbox(src->corners[BOTTOM_RIGHT], &Eng_col_sys.y);
 }
 
 void Eng_draw_hitbox(ColRect* src) {
 	if(!Eng_debug_vis) return;
 
-#define GET_POS(x_or_y, top_or_bottom)                                         \
-	((Eng_col_sys.x_or_y.arr[src->corners[top_or_bottom##_RIGHT]].pos -        \
-	  Eng_col_sys.x_or_y.arr[src->corners[top_or_bottom##_LEFT]].pos) /        \
-	 DEFAULT_FIXED_POINT)
-
-	Vector2l world_pos = {
-		Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos,
-		Eng_col_sys.x.arr[src->corners[BOTTOM_LEFT]].pos
+	Transform tf = {
+		.pos = (Vector2l) {Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos,
+	                       Eng_col_sys.y.arr[src->corners[BOTTOM_LEFT]].pos},
 	};
-	SDL_Log("World pos: %d, %d", world_pos.x, world_pos.y);
+	tf.size.x = Eng_col_sys.x.arr[src->corners[TOP_RIGHT]].pos - tf.pos.x;
+	tf.size.y = Eng_col_sys.y.arr[src->corners[BOTTOM_RIGHT]].pos - tf.pos.y;
 
-	SDL_FPoint screen_pos = {0};
-
-	Vector2l size = {GET_POS(x, TOP), GET_POS(y, BOTTOM)};
-
-	SDL_FPoint origin = {size.x >> 1, size.y >> 1};
-
-	SDL_FRect dest = {0, 0, size.x, size.y};
-
-	Cam_transform(&world_pos, &screen_pos, &dest, &origin, &Eng_std_camera);
+	const SDL_FRect dest = Cam_transform_rect(&tf, &Eng_std_camera, NULL);
 
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
 	SDL_RenderRect(renderer, &dest);

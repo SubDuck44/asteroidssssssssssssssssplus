@@ -6,6 +6,7 @@
 
 #include "utils.c"
 #include <SDL3_ttf/SDL_ttf.h>
+#include <sys/types.h>
 
 // Title of the application the program should use
 #define APPLICATION_TITLE "Asteroidssssssssssssssss+"
@@ -44,34 +45,37 @@ void              Eng_input_deferred();
 Error             Eng_update_frame(void);
 
 // Collision system
-enum COLRECT_CORNERS : uint8_t {
-	TOP_LEFT,
-	TOP_RIGHT,
-	BOTTOM_LEFT,
-	BOTTOM_RIGHT,
-};
 typedef struct {
-	void*                owner;
-	uint32_t             type;
-	enum COLRECT_CORNERS corners[4];
+	void*    owner;
+	uint32_t typeof_owner;
+	ssize_t  x_ind;
+	ssize_t  y_ind;
+	uint32_t width;
+	uint32_t height;
 } ColRect;
 typedef struct {
-	enum COLRECT_CORNERS type;
-	int64_t              pos;
-	ColRect*             owner;
+	int64_t  val;
+	ColRect* par;
 } ColNode;
-DynArr(ColNode);
+typedef struct {
+	ColNode* arr;
+	ssize_t  len;
+	ssize_t  cap;
+} ColNodes;
 typedef struct {
 	ColNodes x;
 	ColNodes y;
 } ColSys;
-// _____________________________________________________________________________
-extern ColSys Eng_col_sys;
 // -----------------------------------------------------------------------------
-void Eng_create_hitbox(ColRect* dest, Transform* src);
-void Eng_destroy_hitbox(ColRect* target);
-void Eng_set_hitbox_pos(ColRect* src, Vector2l pos);
-void Eng_draw_hitbox(ColRect* src);
+extern ColSys Eng_col;
+// _____________________________________________________________________________
+Error Eng_make_hitbox(
+	ColRect* dest, void* owner, uint32_t typeof_owner, int64_t x, int64_t y,
+	uint32_t width, uint32_t height
+);
+void Eng_free_hitbox(ColRect* target);
+void Eng_set_hitbox(ColRect* target, Vector2l pos);
+void Eng_draw_hitbox(ColRect* target);
 
 // Debug stuff
 typedef struct {
@@ -165,7 +169,7 @@ const char EMB_IOSEVKA_FONT[] = {
 #embed "../res/Iosevka-Regular.ttf"
 };
 
-ColSys Eng_col_sys = {0};
+ColSys Eng_col = {0};
 
 DebugMenu Eng_std_debug_menu;
 #ifndef NDEBUG
@@ -508,147 +512,115 @@ Error Eng_update_frame(void) {
 	return true;
 }
 
-// Collision system
-// ============================================================
-static size_t sort_hitbox(size_t index, const ColNodes* target) {
-	if(index >= target->len) {
-		SDL_Log(
-			CODE_WARN "WARNING: Index out of bounds in sort_hitbox" CODE_END
-		);
-		return index;
-	}
-
-	if(index == 0) goto up;
-	if(index == target->len - 1) goto down;
-	if(target->arr[index - 1].pos > target->arr[index].pos) goto down;
-	if(target->arr[index + 1].pos < target->arr[index].pos) goto up;
-	SDL_Log(
-		CODE_WARN "WARNING: Something fucked during colrect sorting" CODE_END
-	);
-	return index;
-
-up:
-	while(index < target->len) {
-		ColNode* at_i    = &target->arr[index];
-		ColNode* after_i = &target->arr[index + 1];
-		ColNode  buffer  = {0};
-		if(after_i->pos >= at_i->pos) {
-			return index; // Found right position, return index
+// Collision system ============================================================
+static ssize_t sort_colvalue(bool is_y, ssize_t index) {
+	const int64_t own_pos = Eng_col.x.arr[index].val;
+	ssize_t       next    = 0;
+	if(!is_y) {
+#define NEXT mini(index + 1, Eng_col.x.len - 1)
+		while(own_pos > Eng_col.x.arr[NEXT].val) {
+			ColNode c            = Eng_col.x.arr[NEXT];
+			c.par->x_ind         = NEXT;
+			Eng_col.x.arr[index] = Eng_col.x.arr[NEXT];
+			Eng_col.x.arr[NEXT]  = c;
+			index++;
 		}
-		// Swap items
-		after_i->owner->corners[after_i->type] = index;
-		at_i->owner->corners[at_i->type]       = index + 1;
-		buffer                                 = *at_i;
-		*at_i                                  = *after_i;
-		*after_i                               = buffer;
-		index++;
-	}
-	return index;
-
-down:
-	while(index >= 1) {
-		ColNode* at_i     = &target->arr[index];
-		ColNode* before_i = &target->arr[index - 1];
-		ColNode  buffer   = {0};
-		if(before_i->pos <= at_i->pos) {
-			return index; // Found right position, return index
+#undef NEXT
+#define NEXT maxi(index - 1, 0)
+		while(own_pos < Eng_col.x.arr[NEXT].val) {
+			ColNode c            = Eng_col.x.arr[NEXT];
+			c.par->x_ind         = NEXT;
+			Eng_col.x.arr[index] = Eng_col.x.arr[NEXT];
+			Eng_col.x.arr[NEXT]  = c;
+			index--;
 		}
-		// Swap items
-		before_i->owner->corners[before_i->type] = index;
-		at_i->owner->corners[at_i->type]         = index - 1;
-		buffer                                   = *at_i;
-		*at_i                                    = *before_i;
-		*before_i                                = buffer;
-		index--;
+#undef NEXT
+	} else {
+#define NEXT mini(index + 1, Eng_col.x.len - 1)
+		while(own_pos > Eng_col.y.arr[NEXT].val) {
+			ColNode c            = Eng_col.y.arr[NEXT];
+			c.par->y_ind         = NEXT;
+			Eng_col.y.arr[index] = Eng_col.y.arr[NEXT];
+			Eng_col.y.arr[NEXT]  = c;
+			index++;
+		}
+#undef NEXT
+#define NEXT maxi(index - 1, 0)
+		while(own_pos < Eng_col.y.arr[NEXT].val) {
+			ColNode c            = Eng_col.y.arr[NEXT];
+			c.par->y_ind         = NEXT;
+			Eng_col.y.arr[index] = Eng_col.y.arr[NEXT];
+			Eng_col.y.arr[NEXT]  = c;
+			index--;
+		}
+#undef NEXT
 	}
 	return index;
 }
 
-void Eng_create_hitbox(ColRect* dest, Transform* src) {
-	// Make space for two new elements in each array (2 edges * 2 dimensinos)
-	DynArrExtend(&Eng_col_sys.x, 2);
-	DynArrExtend(&Eng_col_sys.y, 2);
-
-	// Initialize additional space to zero (so the sort function will sort them
-	// down)
-	memset(&Eng_col_sys.x.arr[Eng_col_sys.x.len - 2], 0, sizeof(ColNode) * 2);
-	memset(&Eng_col_sys.y.arr[Eng_col_sys.y.len - 2], 0, sizeof(ColNode) * 2);
-
-#define MAKE_COLNODE(x_or_y, pos, corner_type, offset)                         \
-	do {                                                                       \
-		Eng_col_sys.x_or_y.arr[Eng_col_sys.x_or_y.len - 1 - offset] =          \
-			(ColNode) {corner_type, (pos) * DEFAULT_FIXED_POINT, dest};        \
-		dest->corners[corner_type] = sort_hitbox(                              \
-			Eng_col_sys.x_or_y.len - 1 - offset, &Eng_col_sys.x_or_y           \
-		);                                                                     \
-	} while(0)
-
-	MAKE_COLNODE(x, src->pos.x, TOP_LEFT, 1);
-	MAKE_COLNODE(x, src->pos.x + src->size.x, TOP_RIGHT, 0);
-	MAKE_COLNODE(y, src->pos.y, BOTTOM_LEFT, 1);
-	MAKE_COLNODE(y, src->pos.y + src->size.y, BOTTOM_RIGHT, 0);
-#undef MAKE_COLNODE
-}
-
-void Eng_destroy_hitbox(ColRect* target) {
-	Eng_col_sys.x.arr[target->corners[0]].owner = NULL;
-	Eng_col_sys.x.arr[target->corners[1]].owner = NULL;
-	Eng_col_sys.y.arr[target->corners[2]].owner = NULL;
-	Eng_col_sys.y.arr[target->corners[3]].owner = NULL;
-
-	size_t  index = target->corners[TOP_LEFT];
-	uint8_t ahead = 1;
-	while(index < Eng_col_sys.x.len - 2 && ahead < 3) {
-		Eng_col_sys.x.arr[index] = Eng_col_sys.x.arr[index + ahead];
-		if(Eng_col_sys.x.arr[index].owner == NULL) ahead++;
-		index++;
-	}
-
-	target->owner = NULL;
-}
-
-void Eng_set_hitbox_pos(ColRect* src, Vector2l pos) {
-	SDL_Log(
-		"X: %" PRId64 " Y: %" PRId64 " X+W: %" PRId64 " Y+H: %" PRId64,
-		Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos,
-		Eng_col_sys.x.arr[src->corners[BOTTOM_LEFT]].pos,
-		Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos,
-		Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos
-	);
-	const int64_t width = Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos -
-	                      Eng_col_sys.x.arr[src->corners[TOP_RIGHT]].pos;
-	const int64_t height = Eng_col_sys.x.arr[src->corners[BOTTOM_LEFT]].pos -
-	                       Eng_col_sys.x.arr[src->corners[BOTTOM_RIGHT]].pos;
-
-	Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos     = pos.x;
-	Eng_col_sys.x.arr[src->corners[TOP_RIGHT]].pos    = pos.x + width;
-	Eng_col_sys.y.arr[src->corners[BOTTOM_LEFT]].pos  = pos.y;
-	Eng_col_sys.y.arr[src->corners[BOTTOM_RIGHT]].pos = pos.y + height;
-
-	src->corners[TOP_LEFT] =
-		sort_hitbox(src->corners[TOP_LEFT], &Eng_col_sys.x);
-	src->corners[TOP_RIGHT] =
-		sort_hitbox(src->corners[TOP_LEFT], &Eng_col_sys.x);
-	src->corners[BOTTOM_LEFT] =
-		sort_hitbox(src->corners[BOTTOM_RIGHT], &Eng_col_sys.y);
-	src->corners[BOTTOM_RIGHT] =
-		sort_hitbox(src->corners[BOTTOM_RIGHT], &Eng_col_sys.y);
-}
-
-void Eng_draw_hitbox(ColRect* src) {
-	if(!Eng_debug_vis) return;
-
-	Transform tf = {
-		.pos = (Vector2l) {Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos,
-	                       Eng_col_sys.y.arr[src->corners[BOTTOM_LEFT]].pos},
+Error Eng_make_hitbox(
+	ColRect* dest, void* owner, uint32_t typeof_owner, int64_t x, int64_t y,
+	uint32_t width, uint32_t height
+) {
+	*dest = (ColRect) {
+		.owner        = owner,
+		.typeof_owner = typeof_owner,
+		.width        = width,
+		.height       = height,
+		.x_ind        = -1,
+		.y_ind        = -1,
 	};
-	tf.size.x = Eng_col_sys.x.arr[src->corners[TOP_RIGHT]].pos - tf.pos.x;
-	tf.size.y = Eng_col_sys.y.arr[src->corners[BOTTOM_RIGHT]].pos - tf.pos.y;
 
-	const SDL_FRect dest = Cam_transform_rect(&tf, &Eng_std_camera, NULL);
+	ColNode x_node = {x, dest};
+	ColNode y_node = {y, dest};
+
+	DynArrPush(&Eng_col.x, x_node);
+	DynArrPush(&Eng_col.y, y_node);
+
+	dest->x_ind = sort_colvalue(0, Eng_col.x.len - 1);
+	dest->y_ind = sort_colvalue(1, Eng_col.y.len - 1);
+
+	return true;
+}
+
+void Eng_free_hitbox(ColRect* target) {
+	for(ssize_t i = target->x_ind; (size_t) i < Eng_col.x.len - 2; i++) {
+		Eng_col.x.arr[i + 1].par->x_ind = i;
+		Eng_col.x.arr[i]                = Eng_col.x.arr[i + 1];
+	}
+	for(ssize_t i = target->y_ind; (size_t) i < Eng_col.y.len - 2; i++) {
+		Eng_col.y.arr[i + 1].par->y_ind = i;
+		Eng_col.y.arr[i]                = Eng_col.y.arr[i + 1];
+	}
+
+	DynArrShrink(&Eng_col.x, 1);
+	DynArrShrink(&Eng_col.y, 1);
+}
+
+void Eng_set_hitbox(ColRect* target, Vector2l pos) {
+	Eng_col.x.arr[target->x_ind].val = pos.x;
+
+	target->x_ind = sort_colvalue(0, target->x_ind);
+
+	Eng_col.y.arr[target->y_ind].val = pos.y;
+
+	target->y_ind = sort_colvalue(1, target->y_ind);
+}
+
+void Eng_draw_hitbox(ColRect* target) {
+	Transform tf = {
+		(Vector2l) {Eng_col.x.arr[target->x_ind].val,
+	                Eng_col.y.arr[target->y_ind].val},
+		(SDL_FPoint) {(int64_t) (target->width / DEFAULT_FIXED_POINT),
+	                  (int64_t) (target->height / DEFAULT_FIXED_POINT)},
+		(SDL_FPoint) {0, 0},
+		0,
+	};
+
+	const SDL_FRect rect = Cam_transform_rect(&tf, &Eng_std_camera, NULL);
 
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-	SDL_RenderRect(renderer, &dest);
+	SDL_RenderRect(renderer, &rect);
 }
 
 // Debug stuff

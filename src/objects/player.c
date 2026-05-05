@@ -78,7 +78,10 @@ Error GameObject_player_create(void) {
 				   "player" CODE_END
 	);
 
-	Eng_create_hitbox(&new->hitbox, &new->tf);
+	Eng_make_hitbox(
+		&new->hitbox, (void*) new, GAMEOBJECT_PLAYER, new->tf.pos.x,
+		new->tf.pos.y, new->tf.size.x, new->tf.size.y
+	);
 
 	return true;
 }
@@ -136,7 +139,7 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	Eng_std_camera.target = self->tf.pos;
 
 	// Set hitbox
-	Eng_set_hitbox_pos(&self->hitbox, self->tf.pos);
+	Eng_set_hitbox(&self->hitbox, self->tf.pos);
 
 	SDL_FPoint player_origin = {
 		50 * Eng_std_camera.zoom, 50 * Eng_std_camera.zoom

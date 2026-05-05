@@ -1,7 +1,7 @@
 #include <SDL3/SDL_main.h> // Dont move this or DIE
 
 #include "engine.c"
-#include "gameobjects.c"
+#include "objects/player.c"
 
 int main(int argc, char* argv[]) {
 	/* INIT */

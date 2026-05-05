@@ -449,18 +449,16 @@ SDL_FRect Cam_transform_rect(Transform* src, Camera* cam, SDL_FPoint* origin) {
 	const SDL_FPoint position = Cam_world_to_screen(src->pos, cam);
 
 	const SDL_FPoint size = {
-		(int64_t) (src->size.x / DEFAULT_FIXED_POINT) * cam->zoom,
-		(int64_t) (src->size.y / DEFAULT_FIXED_POINT) * cam->zoom
+		(int64_t) src->size.x * cam->zoom, (int64_t) src->size.y * cam->zoom
 	};
 
 	if(origin) {
-		*origin = (SDL_FPoint) {
-			(int64_t) (src->ctr.x / DEFAULT_FIXED_POINT) * cam->zoom,
-			(int64_t) (src->ctr.y / DEFAULT_FIXED_POINT) * cam->zoom
-		};
+		*origin = (SDL_FPoint) {(int64_t) src->ctr.x * cam->zoom,
+		                        (int64_t) src->ctr.y * cam->zoom};
 	}
 
-	return (SDL_FRect) {position.x, position.y, size.x, size.y};
+	return (SDL_FRect) {position.x - (size.x / 2), position.y - (size.y / 2),
+	                    size.x, size.y};
 }
 
 // Vector2 math

@@ -144,7 +144,7 @@ extern Camera Eng_std_camera;
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
-#include "gameobjects.c"
+#include "objects/asteroid.c"
 #include "repl.c"
 #include "res.c"
 
@@ -609,13 +609,12 @@ void Eng_destroy_hitbox(ColRect* target) {
 
 void Eng_set_hitbox_pos(ColRect* src, Vector2l pos) {
 	SDL_Log(
-		"Current position is: %d, %d, %d, %d",
+		"X: %" PRId64 " Y: %" PRId64 " X+W: %" PRId64 " Y+H: %" PRId64,
 		Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos,
-		Eng_col_sys.x.arr[src->corners[TOP_RIGHT]].pos,
-		Eng_col_sys.y.arr[src->corners[BOTTOM_LEFT]].pos,
-		Eng_col_sys.y.arr[src->corners[BOTTOM_RIGHT]]
+		Eng_col_sys.x.arr[src->corners[BOTTOM_LEFT]].pos,
+		Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos,
+		Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos
 	);
-
 	const int64_t width = Eng_col_sys.x.arr[src->corners[TOP_LEFT]].pos -
 	                      Eng_col_sys.x.arr[src->corners[TOP_RIGHT]].pos;
 	const int64_t height = Eng_col_sys.x.arr[src->corners[BOTTOM_LEFT]].pos -
@@ -656,18 +655,14 @@ void Eng_draw_hitbox(ColRect* src) {
 // =================================================================
 void update_debug_menu(DebugMenu* data) {
 	if(Eng_debug_vis) {
-		char                      fps_string[256] = {0};
-		struct GameObject_Player* player =
-			Eng_get_gameobject(GAMEOBJECT_PLAYER, 0);
+		char fps_string[256] = {0};
 		snprintf(
 			fps_string, sizeof(fps_string),
 			"FPS: %d\nCam Pos: %" PRId64 " %" PRId64
-			"\nGameObjects loaded: %" PRIu64 ", Updates scheduled: %" PRIu64
-			" \nPlayer modules: "
-			"%b",
+			"\nGameObjects loaded: %" PRIu64 ", Updates scheduled: %" PRIu64,
 			Eng_current_fps, Eng_std_camera.target.x / DEFAULT_FIXED_POINT,
 			Eng_std_camera.target.y / DEFAULT_FIXED_POINT, game_objects.len,
-			update_callbacks.len, (player) ? player->modules : 0
+			update_callbacks.len
 		);
 		TTF_SetTextString(data->display, fps_string, sizeof(fps_string));
 

@@ -21,6 +21,8 @@ executable(
 	'src/gameobjects.c',
 	'src/utils.c',
 	'src/repl.c',
+	'src/objects/player.c',
+	'src/objects/asteroid.c',
 	res,
 	dependencies: [
 		dependency('sdl3'),

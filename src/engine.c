@@ -515,7 +515,6 @@ Error Eng_update_frame(void) {
 // Collision system ============================================================
 static ssize_t sort_colvalue(bool is_y, ssize_t index) {
 	const int64_t own_pos = Eng_col.x.arr[index].val;
-	ssize_t       next    = 0;
 	if(!is_y) {
 #define NEXT mini(index + 1, Eng_col.x.len - 1)
 		while(own_pos > Eng_col.x.arr[NEXT].val) {
@@ -524,6 +523,7 @@ static ssize_t sort_colvalue(bool is_y, ssize_t index) {
 			Eng_col.x.arr[index] = Eng_col.x.arr[NEXT];
 			Eng_col.x.arr[NEXT]  = c;
 			index++;
+			return index;
 		}
 #undef NEXT
 #define NEXT maxi(index - 1, 0)
@@ -533,6 +533,7 @@ static ssize_t sort_colvalue(bool is_y, ssize_t index) {
 			Eng_col.x.arr[index] = Eng_col.x.arr[NEXT];
 			Eng_col.x.arr[NEXT]  = c;
 			index--;
+			return index;
 		}
 #undef NEXT
 	} else {
@@ -543,6 +544,7 @@ static ssize_t sort_colvalue(bool is_y, ssize_t index) {
 			Eng_col.y.arr[index] = Eng_col.y.arr[NEXT];
 			Eng_col.y.arr[NEXT]  = c;
 			index++;
+			return index;
 		}
 #undef NEXT
 #define NEXT maxi(index - 1, 0)
@@ -552,6 +554,7 @@ static ssize_t sort_colvalue(bool is_y, ssize_t index) {
 			Eng_col.y.arr[index] = Eng_col.y.arr[NEXT];
 			Eng_col.y.arr[NEXT]  = c;
 			index--;
+			return index;
 		}
 #undef NEXT
 	}
@@ -565,8 +568,8 @@ Error Eng_make_hitbox(
 	*dest = (ColRect) {
 		.owner        = owner,
 		.typeof_owner = typeof_owner,
-		.width        = width,
-		.height       = height,
+		.width        = width * DEFAULT_FIXED_POINT,
+		.height       = height * DEFAULT_FIXED_POINT,
 		.x_ind        = -1,
 		.y_ind        = -1,
 	};

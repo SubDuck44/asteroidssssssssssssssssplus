@@ -227,10 +227,13 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	// Draw velocity vector
 	float vector_strength = Vec2f_length(self->vel);
 	if(vector_strength > 2) {
-		SDL_FPoint prog_pos =
-			FPoint_add(player_ctr, Vec2f_to_FPoint(self->vel));
-		SDL_FPoint retro_pos =
-			FPoint_add(player_ctr, Vec2f_to_FPoint(Vec2f_invert(self->vel)));
+		SDL_FPoint prog_pos = FPoint_add(
+			player_ctr, FPoint_scale(Vec2f_to_FPoint(self->vel), 10)
+		);
+		SDL_FPoint retro_pos = FPoint_add(
+			player_ctr,
+			FPoint_scale(Vec2f_to_FPoint(Vec2f_invert(self->vel)), 10)
+		);
 		SDL_FRect prog_dest  = {prog_pos.x - 12.5, prog_pos.y - 12.5, 25, 25};
 		SDL_FRect retro_dest = {retro_pos.x - 12.5, retro_pos.y - 12.5, 25, 25};
 

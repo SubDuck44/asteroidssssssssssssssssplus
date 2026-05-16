@@ -18,7 +18,6 @@
 extern SDL_Point Eng_screensize;
 
 // Frame handling
-#define DEFAULT_VSYNC_ENABLE
 #define DEFAULT_FPS 60
 // -----------------------------------------------------------------------------
 extern uint32_t Eng_desired_fps;
@@ -38,20 +37,22 @@ extern const char      EMB_IOSEVKA_FONT[];
 ----------------------------------------------------------------------------- */
 
 // Control flow
-Error             Eng_init(void);
-[[noreturn]] void Eng_exit(void);
-Error             Eng_input_update(SDL_Event* event);
-void              Eng_input_deferred();
-Error             Eng_update_frame(void);
+Result Eng_init(void);
+void   Eng_exit(void);
+Result Eng_input_update(SDL_Event* event);
+void   Eng_input_deferred();
+Result Eng_update_frame(void);
 
 // Collision system
+typedef void (*OnCollision)(void* self, void* owner, uint32_t typeof_owner);
 typedef struct {
-	void*    owner;
-	uint32_t typeof_owner;
-	ssize_t  x_ind;
-	ssize_t  y_ind;
-	uint32_t width;
-	uint32_t height;
+	void*       owner;
+	OnCollision callback;
+	uint32_t    typeof_owner;
+	ssize_t     x_ind;
+	ssize_t     y_ind;
+	uint32_t    width;
+	uint32_t    height;
 } ColRect;
 typedef struct {
 	int64_t  val;
@@ -69,13 +70,14 @@ typedef struct {
 // -----------------------------------------------------------------------------
 extern ColSys Eng_col;
 // _____________________________________________________________________________
-Error Eng_make_hitbox(
-	ColRect* dest, void* owner, uint32_t typeof_owner, int64_t x, int64_t y,
-	uint32_t width, uint32_t height
+Result Eng_make_hitbox(
+	ColRect* dest, void* owner, OnCollision callback, uint32_t typeof_owner,
+	int64_t x, int64_t y, uint32_t width, uint32_t height
 );
 void Eng_free_hitbox(ColRect* target);
 void Eng_set_hitbox(ColRect* target, Vector2l pos);
-void Eng_draw_hitbox(ColRect* target);
+void Eng_draw_hitbox(ColRect* target, const bool hit);
+void Eng_update_hitbox(ColRect* target);
 
 // Debug stuff
 typedef struct {
@@ -83,7 +85,7 @@ typedef struct {
 	TTF_Text*  display;
 } DebugMenu;
 // -----------------------------------------------------------------------------
-extern DebugMenu Eng_std_debug_menu;
+extern DebugMenu Eng_debug_menu;
 extern bool      Eng_debug_vis;
 // -----------------------------------------------------------------------------
 void update_debug_menu(DebugMenu* data);
@@ -96,19 +98,18 @@ typedef struct {
 	uint32_t type;
 	void*    data;
 } GameObject;
-typedef Error (*Method)(void* data, uint32_t index);
+typedef Result (*Method)(void* data, uint32_t index);
 typedef struct {
 	Method func;
 	void*  argv;
 } UpdateHook;
 // -----------------------------------------------------------------------------
-Error Eng_create_object(
-	void* src, void** new_ref, size_t data_size, uint32_t type
-);
-Error Eng_destroy_object(uint32_t target);
-Error Eng_hook_update(Method func, void* data);
-Error Eng_unhook_update(void* data);
-void* Eng_get_gameobject(uint32_t type, int32_t index);
+Result
+Eng_create_object(void* src, void** new_ref, size_t data_size, uint32_t type);
+Result Eng_destroy_object(uint32_t target);
+Result Eng_hook_update(Method func, void* data);
+Result Eng_unhook_update(void* data);
+void*  Eng_get_gameobject(uint32_t type, int32_t index);
 
 // Input handling
 #define KEYS                                                                   \
@@ -144,7 +145,7 @@ extern SDL_Window*   window;
 extern SDL_Renderer* renderer;
 
 // Camera system
-extern Camera Eng_std_camera;
+extern Camera Eng_camera;
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
@@ -152,7 +153,6 @@ extern Camera Eng_std_camera;
 #include "repl.c"
 #include "res.c"
 
-#include <inttypes.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -162,7 +162,6 @@ static uint64_t last_frame_time = 1;
 uint32_t        Eng_desired_fps = 60;
 uint32_t        Eng_current_fps = 1;
 
-static uint16_t fontsize;
 TTF_Font*       Eng_font;
 TTF_TextEngine* Eng_text_engine;
 const char EMB_IOSEVKA_FONT[] = {
@@ -171,7 +170,7 @@ const char EMB_IOSEVKA_FONT[] = {
 
 ColSys Eng_col = {0};
 
-DebugMenu Eng_std_debug_menu;
+DebugMenu Eng_debug_menu;
 #ifndef NDEBUG
 bool Eng_debug_vis = true;
 #else
@@ -189,7 +188,7 @@ SDL_FPoint Eng_mouse_pos          = {0};
 SDL_Window*   window;
 SDL_Renderer* renderer;
 
-Camera Eng_std_camera;
+Camera Eng_camera;
 
 // Frame handling
 double Eng_get_deltatime_factor(void) {
@@ -201,151 +200,188 @@ double Eng_get_deltatime_factor(void) {
 
 /* Initialize the engine, required for… well… everything in
  * it to work */
-Error Eng_init(void) {
+Result Eng_init(void) {
 	SDL_Log("INFO: Initializing " APPLICATION_TITLE "…");
 	bool fatal_error = false;
 
 	// Try setup main SDL lib
-	ASSERT_PREDICATE_SDL(SDL_Init(SDL_INIT_VIDEO), fatal_error = true;
-	                     ,
-	                     CODE_SUCCESS
-	                     "INFO: Successfully initialized SDL" CODE_END,
-	                     CODE_ERROR "FATAL: Failed to initialize SDL" CODE_END);
+	if(!SDL_Init(SDL_INIT_VIDEO)) {
+		fatal_error = true;
+		printf(CODE_ERROR "ERR: Failed to start SDL" CODE_END);
+	}
 
 	// Try setup window
-	ASSERT_PREDICATE_SDL(SDL_CreateWindowAndRenderer(
-							 "Asteroidssssssssssssssss+", 1280, 720, 0, &window,
-							 &renderer
-						 ),
-	                     fatal_error = true;
-	                     ,
-	                     CODE_SUCCESS "INFO: Successfully initialized "
-	                                  "window/renderer" CODE_END,
-	                     CODE_ERROR "FATAL: Failed to initialize "
-	                                "window/renderer" CODE_END);
+	if(!SDL_CreateWindowAndRenderer(
+		   APPLICATION_TITLE, DEFAULT_SCREENWIDTH, DEFAULT_SCREENHEIGHT, 0,
+		   &window, &renderer
+	   )) {
+		fatal_error = true;
+		printf(
+			CODE_ERROR "ERR: Failed to open window/start renderer\n\t%s\n",
+			SDL_GetError()
+		);
+	}
 
 	// Disable AA
-	SDL_SetDefaultTextureScaleMode(renderer, SDL_SCALEMODE_PIXELART);
+	if(!SDL_SetDefaultTextureScaleMode(renderer, SDL_SCALEMODE_PIXELART)) {
+		printf(CODE_WARN "WARN: Failed to disable AA\n\t%s\n", SDL_GetError());
+	} else {
+		printf("INFO: Disabled AA");
+	}
 
 	// Try setup font lib
-	ASSERT_PREDICATE(
-		TTF_Init(), fatal_error = true;
-		, CODE_SUCCESS "INFO: Successfully started TTF" CODE_END,
-		CODE_ERROR "FATAL: Failed to start TTF" CODE_END
-	);
+	if(!TTF_Init()) {
+		fatal_error = true;
+		printf(
+			CODE_ERROR "ERR: Failed to start TTF" CODE_END "\n\t%s\n",
+			SDL_GetError()
+		);
+	}
 
 	// Try setup font file
-	ASSERT_PREDICATE(
-		Eng_font = TTF_OpenFontIO(
-			SDL_IOFromConstMem(EMB_IOSEVKA_FONT, sizeof(EMB_IOSEVKA_FONT)),
-			true, DEFAULT_FONTSIZE
-		),
+	SDL_IOStream* to_embedded_mem =
+		SDL_IOFromConstMem(EMB_IOSEVKA_FONT, sizeof(EMB_IOSEVKA_FONT));
+	if(to_embedded_mem == NULL) {
 		fatal_error = true;
-		, CODE_SUCCESS "INFO: Successfully loaded font" CODE_END,
-		CODE_ERROR "FATAL: Failed to load font" CODE_END
-	);
-	fontsize = DEFAULT_FONTSIZE;
+		printf(
+			CODE_ERROR
+			"ERR: Failed to load iostream for font to embedded mem" CODE_END
+			"\n\t%s\n",
+			SDL_GetError()
+		);
+		goto load_font_finished;
+	}
+	Eng_font = TTF_OpenFontIO(to_embedded_mem, true, DEFAULT_FONTSIZE);
+	if(Eng_font == NULL) {
+		fatal_error = true;
+		printf(
+			CODE_ERROR "ERR: Failed to load font from embedded mem" CODE_END
+					   "\n\t%s\n",
+			SDL_GetError()
+		);
+	} else {
+		goto load_font_finished;
+	}
+
+	if(!SDL_CloseIO(to_embedded_mem)) {
+		fatal_error = true;
+		printf(
+			CODE_ERROR "ERR: Failed to close iostream" CODE_END "\n\t%s\n",
+			SDL_GetError()
+		);
+	}
+
+load_font_finished:
 
 	// Try setup text engine
-	ASSERT_PREDICATE(
-		Eng_text_engine = TTF_CreateRendererTextEngine(renderer),
-		fatal_error     = true;
-		,
-		CODE_SUCCESS "INFO: Successfully initialized font "
-					 "engine" CODE_END,
-		CODE_ERROR "FATAL: Failed to initialize font engine" CODE_END
-	);
-
-#ifdef VSYNC_ON
-	// Try setup VSync
-	ASSERT_PREDICATE_SDL(
-		SDL_SetRenderVSync(renderer, SDL_RENDERER_VSYNC_ADAPTIVE), ;
-		, CODE_SUCCESS "INFO: Successfully enabled VSync" CODE_END,
-		CODE_WARNING "WARNING: Failed to enable VSync" CODE_END
-	);
-#endif
-
-	// Try setup textures
-	bool texture_failed = false;
-
-	for(uint32_t i = 0; i < TEXTURES_COUNT; i++) {
-		SDL_Surface* surface = SDL_LoadPNG_IO(
-			SDL_IOFromConstMem(TEXTURES[i]->tex_data, TEXTURES[i]->tex_size),
-			true
+	if(!renderer) {
+		fatal_error = true;
+		printf(
+			CODE_ERROR
+			"ERR: Failed to create text engine due to missing renderer" CODE_END
 		);
-		if(!surface) {
-#ifndef NDEBUG
-			SDL_Err(
-				CODE_ERROR "FATAL: Failed to load texture "
-						   "%d into RAM" CODE_END,
-				i
+	} else {
+		Eng_text_engine = TTF_CreateRendererTextEngine(renderer);
+		if(Eng_text_engine == NULL) {
+			fatal_error = true;
+			printf(
+				CODE_ERROR "ERR: Failed to create text engine" CODE_END
+						   "\n\t%s\n",
+				SDL_GetError()
 			);
-			fatal_error    = true;
-			texture_failed = true;
-#endif
-		} else {
-			TEXTURES[i]->tex = SDL_CreateTextureFromSurface(renderer, surface);
-#ifndef NDEBUG
-			if(!TEXTURES[i]->tex) {
-				SDL_Err(
-					CODE_ERROR "FATAL: Failed to load texture %d "
-							   "into VRAM" CODE_END,
-					i
-				);
-				fatal_error    = true;
-				texture_failed = true;
-			}
-#endif
-			SDL_DestroySurface(surface);
 		}
 	}
-#ifndef NDEBUG
-	if(!texture_failed)
-		SDL_Log(
-			CODE_SUCCESS "INFO: Successfully initialized "
-						 "%d textures" CODE_END,
-			TEXTURES_COUNT
-		);
-#else
-	(void) texture_failed;
-#endif
+
+	// Try setup VSync
+	if(!SDL_SetRenderVSync(renderer, SDL_RENDERER_VSYNC_ADAPTIVE)) {
+		printf(CODE_WARN "WARN: Failed to enable VSync" CODE_END);
+	}
+
+	// Try setup textures
+	for(uint32_t i = 0; i < TEXTURES_COUNT; i++) {
+		SDL_IOStream* iostream =
+			SDL_IOFromConstMem(TEXTURES[i]->tex_data, TEXTURES[i]->tex_size);
+		if(iostream == NULL) {
+			fatal_error = true;
+			printf(
+				CODE_ERROR "ERR: Failed to open iostrema to embedded mem of "
+						   "texture %u\n\t%s\n",
+				i, SDL_GetError()
+			);
+			continue;
+		}
+		SDL_Surface* surface = SDL_LoadPNG_IO(iostream, true);
+		if(!surface) {
+			fatal_error = true;
+			printf(
+				CODE_ERROR "ERR: Failed to create surface for texture %u"
+						   "\n\t%s\n",
+				i, SDL_GetError()
+			);
+			continue;
+		}
+		TEXTURES[i]->tex = SDL_CreateTextureFromSurface(renderer, surface);
+		if(TEXTURES[i]->tex == NULL) {
+			fatal_error = true;
+			printf(
+				CODE_ERROR "ERR: Failed to load texture %u into VRAM" CODE_END
+						   "\n\t%s\n",
+				i, SDL_GetError()
+			);
+		}
+		SDL_DestroySurface(surface);
+	}
 
 	// Try setup DebugRepl
-	ASSERT_PREDICATE(
-		Repl_init(), fatal_error = true;
-		, CODE_SUCCESS "INFO: Successfully initialized DebugRepl" CODE_END,
-		CODE_ERROR "FATAL: Failed to initialize DebugRepl" CODE_END
-	);
+	if(Repl_init() == FAILURE) {
+		fatal_error = true;
+		printf(CODE_ERROR "ERR: Failed to start asriel" CODE_END);
+	}
 
 	// Try setup DebugMenu
-	Eng_std_debug_menu =
+	Eng_debug_menu =
 		(DebugMenu) {.display = NULL, .pos = (SDL_FPoint) {20.0f, 20.0f}};
-	ASSERT_PREDICATE(
-		(Eng_std_debug_menu.display =
-	         TTF_CreateText(Eng_text_engine, Eng_font, "hewo :3", 0)),
-		fatal_error = true;
-		, CODE_SUCCESS "INFO: Successfully initialized DebugMenu" CODE_END,
-		CODE_ERROR "FATAL: Failed to initialize DebugMenu" CODE_END
+	Eng_debug_menu.display = TTF_CreateText(
+		Eng_text_engine, Eng_font, "[PLACEHOLDER]",
+		0 /* tells TTF to get the strlen itself */
 	);
+	if(Eng_debug_menu.display == NULL) {
+		fatal_error = true;
+		printf(
+			CODE_ERROR "ERR: Failed to create TTF_Text for debug menu" CODE_END
+					   "\n\t%s\n",
+			SDL_GetError()
+		);
+	}
 
 	// Arbitrary initializations
-	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-	Eng_std_camera = (Camera) {(Vector2l) {0, 0}, 1.0f, 1, Eng_screensize};
+	if(!SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND)) {
+		fatal_error = true;
+		printf(
+			CODE_ERROR "ERR: Failed to set renderer blend mode" CODE_END
+					   "\n\t%s\n",
+			SDL_GetError()
+		);
+	}
+	Eng_camera = (Camera) {(Vector2l) {0, 0}, 1.0f, 1, Eng_screensize};
 
-	ASSERT_PREDICATE(!fatal_error, Eng_exit();
-	                 ,
-	                 CODE_SUCCESS "INFO: Green across the board, "
-	                              "launching…" CODE_END,
-	                 CODE_ERROR "FATAL: Caught one or more fatal "
-	                            "exceptions, aborting…" CODE_END);
+	if(fatal_error) {
+		Eng_exit();
+		return FAILURE;
+	};
+
 	SDL_Log("INFO: Welcome to " APPLICATION_TITLE "!");
-	return true;
+
+	return SUCCESS;
 }
 
 /* Runs at the end of the program. */
-[[noreturn]] void Eng_exit(void) {
+void Eng_exit(void) {
 	SDL_Log("INFO: Shutting down…");
-	_exit(0);
+
+	TTF_Quit(); // Shut down font library
+
+	SDL_Quit(); // Shut down SDL
 }
 
 /*
@@ -353,7 +389,7 @@ Run all input capturing events, return value MUST be
 returned from SDL_AppEvent() SDL_Event* event: Pass
 SDL_Event* from SDL_AppEvent()
  */
-Error Eng_input_update(SDL_Event* event) {
+Result Eng_input_update(SDL_Event* event) {
 	switch(event->type) {
 	case SDL_EVENT_MOUSE_MOTION:
 		Eng_mouse_pos = (SDL_FPoint) {event->motion.x, event->motion.y};
@@ -361,10 +397,14 @@ Error Eng_input_update(SDL_Event* event) {
 	case SDL_EVENT_MOUSE_BUTTON_DOWN:
 		switch(event->button.button) {
 		case SDL_BUTTON_LEFT:
-			Eng_key_cache[KEY_MOUSE_LEFT] = true;
+			Eng_key_cache[KEY_MOUSE_LEFT] |= (1 << KEY_DOWN);
+			Eng_key_cache[KEY_MOUSE_LEFT] |= (1 << KEY_PRESSED);
+			Eng_key_cache[KEY_MOUSE_LEFT] &= ~(1 << KEY_RELEASED);
 			break;
 		case SDL_BUTTON_RIGHT:
-			Eng_key_cache[KEY_MOUSE_RIGHT] = true;
+			Eng_key_cache[KEY_MOUSE_RIGHT] |= (1 << KEY_DOWN);
+			Eng_key_cache[KEY_MOUSE_RIGHT] |= (1 << KEY_PRESSED);
+			Eng_key_cache[KEY_MOUSE_RIGHT] &= ~(1 << KEY_RELEASED);
 			break;
 		}
 		break;
@@ -372,10 +412,14 @@ Error Eng_input_update(SDL_Event* event) {
 	case SDL_EVENT_MOUSE_BUTTON_UP:
 		switch(event->button.button) {
 		case SDL_BUTTON_LEFT:
-			Eng_key_cache[KEY_MOUSE_LEFT] = false;
+			Eng_key_cache[KEY_MOUSE_LEFT] &= ~(1 << KEY_DOWN);
+			Eng_key_cache[KEY_MOUSE_LEFT] &= ~(1 << KEY_PRESSED);
+			Eng_key_cache[KEY_MOUSE_LEFT] |= (1 << KEY_RELEASED);
 			break;
 		case SDL_BUTTON_RIGHT:
-			Eng_key_cache[KEY_MOUSE_RIGHT] = false;
+			Eng_key_cache[KEY_MOUSE_RIGHT] &= ~(1 << KEY_DOWN);
+			Eng_key_cache[KEY_MOUSE_RIGHT] &= ~(1 << KEY_PRESSED);
+			Eng_key_cache[KEY_MOUSE_RIGHT] |= (1 << KEY_RELEASED);
 			break;
 		}
 		break;
@@ -437,7 +481,7 @@ void Eng_input_deferred(void) {
 /*
 Process all callbacks in the update_callbacks queue
 */
-Error Eng_update_frame(void) {
+Result Eng_update_frame(void) {
 	// Start frame timer
 	const uint64_t frametime_start = SDL_GetTicksNS();
 
@@ -447,19 +491,73 @@ Error Eng_update_frame(void) {
 		Eng_input_update(&cur_event);
 	}
 
+	if(Eng_get_key_pressed(KEY_MOUSE_LEFT)) {
+		GameObject_asteroid_create(
+			Cam_screen_to_world(Eng_mouse_pos, &Eng_camera)
+		);
+	}
+#define DUMP_COL_X                                                             \
+	do {                                                                       \
+		SDL_Log("=Dumping col x==");                                           \
+		for(ssize_t i = 0; i < Eng_col.x.len; i++) {                           \
+			SDL_Log("%ld - %ld", i, Eng_col.x.arr[i].val);                     \
+		}                                                                      \
+		SDL_Log("================");                                           \
+		ASSERT_COL_X;                                                          \
+	} while(0)
+#define DUMP_COL_Y                                                             \
+	do {                                                                       \
+		SDL_Log("=Dumping col y==");                                           \
+		for(ssize_t i = 0; i < Eng_col.y.len; i++) {                           \
+			SDL_Log("%ld - %ld", i, Eng_col.y.arr[i].val);                     \
+		}                                                                      \
+		SDL_Log("================");                                           \
+		ASSERT_COL_Y;                                                          \
+	} while(0);
+#define ASSERT_COL_X                                                           \
+	do {                                                                       \
+		for(ssize_t i = 0; i < Eng_col.x.len - 1; i++) {                       \
+			if(Eng_col.x.arr[i].val > Eng_col.x.arr[i + 1].val) {              \
+				SDL_Log(                                                       \
+					CODE_WARN                                                  \
+					"WARNING: X array violated sorting assumption" CODE_END    \
+				);                                                             \
+				Eng_exit();                                                    \
+			}                                                                  \
+		}                                                                      \
+	} while(0)
+#define ASSERT_COL_Y                                                           \
+	do {                                                                       \
+		for(ssize_t i = 0; i < Eng_col.y.len - 1; i++) {                       \
+			if(Eng_col.y.arr[i].val > Eng_col.y.arr[i + 1].val) {              \
+				SDL_Log(                                                       \
+					CODE_WARN                                                  \
+					"WARNING: Y array violated sorting assumption" CODE_END    \
+				);                                                             \
+				Eng_exit();                                                    \
+			}                                                                  \
+		}                                                                      \
+	} while(0);
+
+	// Print col report
+	if(Eng_get_key_pressed(KEY_RETURN)) {
+		DUMP_COL_X;
+		DUMP_COL_Y;
+	}
+
 	// Grey background
 	SDL_SetRenderDrawColor(renderer, 39, 36, 43, 255);
 	SDL_RenderClear(renderer);
 
 	if(Eng_get_key_down(KEY_MINUS)) {
-		Eng_std_camera.zoom_factor =
-			clamp(INT8_MIN, INT8_MAX, Eng_std_camera.zoom_factor - 1);
-		Eng_std_camera.zoom = 1 * pow(1.1, Eng_std_camera.zoom_factor);
+		Eng_camera.zoom_factor =
+			CLAMP(INT8_MIN, INT8_MAX, Eng_camera.zoom_factor - 1);
+		Eng_camera.zoom = 1 * pow(1.1, Eng_camera.zoom_factor);
 	}
 	if(Eng_get_key_down(KEY_PLUS)) {
-		Eng_std_camera.zoom_factor =
-			clamp(INT8_MIN, INT8_MAX, Eng_std_camera.zoom_factor + 1);
-		Eng_std_camera.zoom = 1 * pow(1.1, Eng_std_camera.zoom_factor);
+		Eng_camera.zoom_factor =
+			CLAMP(INT8_MIN, INT8_MAX, Eng_camera.zoom_factor + 1);
+		Eng_camera.zoom = 1 * pow(1.1, Eng_camera.zoom_factor);
 	}
 
 	for(uint32_t i = 0; i < update_callbacks.len; i++) {
@@ -470,7 +568,7 @@ Error Eng_update_frame(void) {
 	}
 
 	// Draw debug menu if debug is visible
-	update_debug_menu(&Eng_std_debug_menu);
+	update_debug_menu(&Eng_debug_menu);
 
 	SDL_RenderPresent(renderer);
 
@@ -480,16 +578,7 @@ Error Eng_update_frame(void) {
 		case COMMAND_EXIT:
 			SDL_Log("INFO: Received exit command from DebugRepl, exiting…");
 			Eng_exit();
-		case COMMAND_SPAWN_ASTEROID:
-			SDL_Log("INFO: Spawning asteroid above camera target");
-			ASSERT_PREDICATE(
-				GameObject_asteroid_create(NULL), return false;
-				,
-				CODE_SUCCESS
-				"INFO: Successfully created GameObject asteroid" CODE_END,
-				CODE_ERROR
-				"FATAL: Failed to create GameObject asteroid" CODE_END
-			);
+			break;
 		}
 	}
 
@@ -514,59 +603,111 @@ Error Eng_update_frame(void) {
 
 // Collision system ============================================================
 static ssize_t sort_colvalue(bool is_y, ssize_t index) {
-	const int64_t own_pos = Eng_col.x.arr[index].val;
+	SDL_Log(
+		"=Begin sorting index %ld =======================================",
+		index
+	);
 	if(!is_y) {
-#define NEXT mini(index + 1, Eng_col.x.len - 1)
-		while(own_pos > Eng_col.x.arr[NEXT].val) {
-			ColNode c            = Eng_col.x.arr[NEXT];
-			c.par->x_ind         = NEXT;
-			Eng_col.x.arr[index] = Eng_col.x.arr[NEXT];
-			Eng_col.x.arr[NEXT]  = c;
+		SDL_Log("=Item is on x array");
+		SDL_Log("Trying to sort up…");
+		while(index < Eng_col.x.len - 1) {
+			if(Eng_col.x.arr[index].val <= Eng_col.x.arr[index + 1].val) {
+				SDL_Log(
+					"Finished sorting up: %ld %ld", Eng_col.x.arr[index].val,
+					Eng_col.x.arr[index + 1].val
+				);
+				break;
+			}
+			SDL_Log(
+				"Swapping %ld - %ld and %ld - %ld", index,
+				Eng_col.x.arr[index].val, index + 1,
+				Eng_col.x.arr[index + 1].val
+			);
+			ColNode c                = Eng_col.x.arr[index];
+			Eng_col.x.arr[index]     = Eng_col.x.arr[index + 1];
+			Eng_col.x.arr[index + 1] = c;
+
 			index++;
-			return index;
 		}
-#undef NEXT
-#define NEXT maxi(index - 1, 0)
-		while(own_pos < Eng_col.x.arr[NEXT].val) {
-			ColNode c            = Eng_col.x.arr[NEXT];
-			c.par->x_ind         = NEXT;
-			Eng_col.x.arr[index] = Eng_col.x.arr[NEXT];
-			Eng_col.x.arr[NEXT]  = c;
+		SDL_Log("Trying to sort down…");
+		while(index > 0) {
+			if(Eng_col.x.arr[index].val >= Eng_col.x.arr[index - 1].val) {
+				SDL_Log(
+					"Finished sorting down: %ld %ld", Eng_col.x.arr[index].val,
+					Eng_col.x.arr[index - 1].val
+				);
+				break;
+			}
+			SDL_Log(
+				"Swapping %ld - %ld and %ld - %ld", index,
+				Eng_col.x.arr[index].val, index - 1,
+				Eng_col.x.arr[index - 1].val
+			);
+			ColNode c                = Eng_col.x.arr[index];
+			Eng_col.x.arr[index]     = Eng_col.x.arr[index - 1];
+			Eng_col.x.arr[index - 1] = c;
+
 			index--;
-			return index;
 		}
-#undef NEXT
+		DUMP_COL_X;
 	} else {
-#define NEXT mini(index + 1, Eng_col.x.len - 1)
-		while(own_pos > Eng_col.y.arr[NEXT].val) {
-			ColNode c            = Eng_col.y.arr[NEXT];
-			c.par->y_ind         = NEXT;
-			Eng_col.y.arr[index] = Eng_col.y.arr[NEXT];
-			Eng_col.y.arr[NEXT]  = c;
+		SDL_Log("=Item is on y array");
+		SDL_Log("Trying to sort up…");
+		while(index < Eng_col.y.len - 1) {
+			if(Eng_col.y.arr[index].val <= Eng_col.y.arr[index + 1].val) {
+				SDL_Log(
+					"Finished sorting up: %ld %ld", Eng_col.y.arr[index].val,
+					Eng_col.y.arr[index + 1].val
+				);
+				break;
+			}
+			SDL_Log(
+				"Swapping %ld - %ld and %ld - %ld", index,
+				Eng_col.y.arr[index].val, index + 1,
+				Eng_col.y.arr[index + 1].val
+			);
+			ColNode c                = Eng_col.y.arr[index];
+			Eng_col.y.arr[index]     = Eng_col.y.arr[index + 1];
+			Eng_col.y.arr[index + 1] = c;
+
 			index++;
-			return index;
 		}
-#undef NEXT
-#define NEXT maxi(index - 1, 0)
-		while(own_pos < Eng_col.y.arr[NEXT].val) {
-			ColNode c            = Eng_col.y.arr[NEXT];
-			c.par->y_ind         = NEXT;
-			Eng_col.y.arr[index] = Eng_col.y.arr[NEXT];
-			Eng_col.y.arr[NEXT]  = c;
+		SDL_Log("Trying to sort down…");
+		while(index > 0) {
+			if(Eng_col.y.arr[index].val >= Eng_col.y.arr[index - 1].val) {
+				SDL_Log(
+					"Finished sorting down: %ld %ld", Eng_col.y.arr[index].val,
+					Eng_col.y.arr[index - 1].val
+				);
+				break;
+			}
+			SDL_Log(
+				"Swapping %ld - %ld and %ld - %ld", index,
+				Eng_col.y.arr[index].val, index - 1,
+				Eng_col.y.arr[index - 1].val
+			);
+			ColNode c                = Eng_col.y.arr[index];
+			Eng_col.y.arr[index]     = Eng_col.y.arr[index - 1];
+			Eng_col.y.arr[index - 1] = c;
+
 			index--;
-			return index;
 		}
-#undef NEXT
+		DUMP_COL_Y;
 	}
+	SDL_Log(
+		"=Finished sorting at %ld =========================================",
+		index
+	);
 	return index;
 }
 
-Error Eng_make_hitbox(
-	ColRect* dest, void* owner, uint32_t typeof_owner, int64_t x, int64_t y,
-	uint32_t width, uint32_t height
+Result Eng_make_hitbox(
+	ColRect* dest, void* owner, OnCollision callback, uint32_t typeof_owner,
+	int64_t x, int64_t y, uint32_t width, uint32_t height
 ) {
 	*dest = (ColRect) {
 		.owner        = owner,
+		.callback     = callback,
 		.typeof_owner = typeof_owner,
 		.width        = width * DEFAULT_FIXED_POINT,
 		.height       = height * DEFAULT_FIXED_POINT,
@@ -587,11 +728,12 @@ Error Eng_make_hitbox(
 }
 
 void Eng_free_hitbox(ColRect* target) {
-	for(ssize_t i = target->x_ind; (size_t) i < Eng_col.x.len - 2; i++) {
+
+	for(ssize_t i = target->x_ind; i < Eng_col.x.len - 2; i++) {
 		Eng_col.x.arr[i + 1].par->x_ind = i;
 		Eng_col.x.arr[i]                = Eng_col.x.arr[i + 1];
 	}
-	for(ssize_t i = target->y_ind; (size_t) i < Eng_col.y.len - 2; i++) {
+	for(ssize_t i = target->y_ind; i < Eng_col.y.len - 2; i++) {
 		Eng_col.y.arr[i + 1].par->y_ind = i;
 		Eng_col.y.arr[i]                = Eng_col.y.arr[i + 1];
 	}
@@ -610,7 +752,7 @@ void Eng_set_hitbox(ColRect* target, Vector2l pos) {
 	target->y_ind = sort_colvalue(1, target->y_ind);
 }
 
-void Eng_draw_hitbox(ColRect* target) {
+void Eng_draw_hitbox(ColRect* target, const bool hit) {
 	Transform tf = {
 		(Vector2l) {Eng_col.x.arr[target->x_ind].val,
 	                Eng_col.y.arr[target->y_ind].val},
@@ -620,23 +762,50 @@ void Eng_draw_hitbox(ColRect* target) {
 		0,
 	};
 
-	const SDL_FRect rect = Cam_transform_rect(&tf, &Eng_std_camera, NULL);
+	const SDL_FRect rect = Cam_transform_rect(&tf, &Eng_camera, NULL);
 
-	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+	if(hit) {
+		SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+	} else {
+		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+	}
 	SDL_RenderRect(renderer, &rect);
+}
+
+void Eng_update_hitbox(ColRect* target) {
+	// Check x
+	ssize_t index     = target->x_ind;
+	int64_t top_right = Eng_col.x.arr[index].val + target->width;
+	while(index < Eng_col.x.len - 1) {
+		ColRect* other = Eng_col.x.arr[index + 1].par;
+		if(Eng_col.x.arr[index + 1].val > top_right) break;
+		// x hit, check y
+		int64_t other_y = Eng_col.y.arr[other->y_ind].val;
+		if(other_y <= Eng_col.y.arr[target->y_ind].val + target->width &&
+		   other_y >= Eng_col.y.arr[target->y_ind].val) {
+			// collision confirmed, run callback
+			other->callback(other->owner, target->owner, target->typeof_owner);
+		}
+		index++;
+	}
 }
 
 // Debug stuff
 // =================================================================
 void update_debug_menu(DebugMenu* data) {
 	if(Eng_debug_vis) {
-		char fps_string[256] = {0};
+		char           fps_string[256] = {0};
+		const Vector2l mouse_world_pos =
+			Cam_screen_to_world(Eng_mouse_pos, &Eng_camera);
 		snprintf(
 			fps_string, sizeof(fps_string),
-			"FPS: %d\nCam Pos: %" PRId64 " %" PRId64
-			"\nGameObjects loaded: %" PRIu64 ", Updates scheduled: %" PRIu64,
-			Eng_current_fps, Eng_std_camera.target.x / DEFAULT_FIXED_POINT,
-			Eng_std_camera.target.y / DEFAULT_FIXED_POINT, game_objects.len,
+			"FPS: %d\nCam Pos: %ld %ld \nMouse Pos: %f %f"
+			"\nPos at mouse: %ld %ld"
+			"\nGameObjects loaded: %lu, Updates scheduled: %lu",
+			Eng_current_fps, Eng_camera.target.x / DEFAULT_FIXED_POINT,
+			Eng_camera.target.y / DEFAULT_FIXED_POINT, Eng_mouse_pos.x,
+			Eng_mouse_pos.y, mouse_world_pos.x / DEFAULT_FIXED_POINT,
+			mouse_world_pos.y / DEFAULT_FIXED_POINT, game_objects.len,
 			update_callbacks.len
 		);
 		TTF_SetTextString(data->display, fps_string, sizeof(fps_string));
@@ -656,9 +825,8 @@ struct of given type size_t data_size:   Give size of
 reserved space for GameObject uint32_t type:      Give type
 of GameObject for recognition
  */
-Error Eng_create_object(
-	void* src, void** new_ref, size_t data_size, uint32_t type
-) {
+Result
+Eng_create_object(void* src, void** new_ref, size_t data_size, uint32_t type) {
 	if(!src) {
 		SDL_Log(
 			CODE_ERROR "ERROR: Tried to create GameObject "
@@ -695,7 +863,7 @@ Unregister and deallocate a GameObject
 uint32_t target: Give uint32 to index target GameObject in
 game_objects array
  */
-Error Eng_destroy_object(uint32_t target) {
+Result Eng_destroy_object(uint32_t target) {
 	if(target >= game_objects.len) {
 		SDL_Log(
 			CODE_ERROR "ERROR: Tried to destroy invalid "
@@ -729,7 +897,7 @@ Method func: Give callback function pointer according to
 Method signature void* data:  Give optional varargs as
 argument to callback
 */
-Error Eng_hook_update(Method func, void* data) {
+Result Eng_hook_update(Method func, void* data) {
 	if(!func) {
 		SDL_Log(
 			CODE_ERROR "ERROR: Tried to hook UpdateHook "
@@ -751,7 +919,7 @@ Unregister a callback, so it is no longer called on
 Eng_TickOnce() void* data: Give GameObject.data pointer of
 target GameObject
  */
-Error Eng_unhook_update(void* data) {
+Result Eng_unhook_update(void* data) {
 	if(!data) {
 		SDL_Log(
 			CODE_ERROR "ERROR: Tried to unhook null "

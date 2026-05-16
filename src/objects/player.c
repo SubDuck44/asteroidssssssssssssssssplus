@@ -28,11 +28,13 @@ struct GameObject_Player {
 	float     force_rcs_thrusters;
 	float     force_rot;
 	ColRect   hitbox;
+	bool      hit_something;
 	uint8_t   modules;
 };
 // -----------------------------------------------------------------------------
-Error GameObject_player_create(void);
-Error GameObject_player_update(void* data, uint32_t index_of_self);
+Result GameObject_player_create(void);
+Result GameObject_player_update(void* data, uint32_t index_of_self);
+void GameObject_player_collide(void* data, void* other, uint32_t typeof_other);
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
@@ -42,7 +44,7 @@ Error GameObject_player_update(void* data, uint32_t index_of_self);
 
 #include "../res.c"
 
-Error GameObject_player_create(void) {
+Result GameObject_player_create(void) {
 	struct GameObject_Player self = {
 		.alive               = true,
 		.vel                 = {0},
@@ -79,14 +81,14 @@ Error GameObject_player_create(void) {
 	);
 
 	Eng_make_hitbox(
-		&new->hitbox, (void*) new, GAMEOBJECT_PLAYER, new->tf.pos.x,
-		new->tf.pos.y, new->tf.size.x, new->tf.size.y
+		&new->hitbox, (void*) new, GameObject_player_collide, GAMEOBJECT_PLAYER,
+		new->tf.pos.x, new->tf.pos.y, new->tf.size.x, new->tf.size.y
 	);
 
 	return true;
 }
 
-Error GameObject_player_update(void* data, uint32_t index_of_self) {
+Result GameObject_player_update(void* data, uint32_t index_of_self) {
 	(void) index_of_self;
 	struct GameObject_Player* self = data;
 
@@ -120,7 +122,7 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 		);
 	if(Eng_get_key_down(KEY_MOUSE_LEFT)) {
 		self->tf.rot = FPoint_angle_to(
-			Cam_world_to_screen(self->tf.pos, &Eng_std_camera), Eng_mouse_pos
+			Cam_world_to_screen(self->tf.pos, &Eng_camera), Eng_mouse_pos
 		);
 	}
 	if(Eng_get_key_pressed(KEY_1)) self->modules ^= (1 << PLAYERMODULE_SOLAR);
@@ -135,18 +137,16 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	self->tf.pos = Vec2l_add_Vec2f(
 		self->tf.pos, Vec2f_scale(self->vel, DEFAULT_FIXED_POINT)
 	);
-	self->tf.rot          = WRAP_COMPASS((int) (self->tf.rot + self->ang_vel));
-	Eng_std_camera.target = self->tf.pos;
+	self->tf.rot      = WRAP_COMPASS((int) (self->tf.rot + self->ang_vel));
+	Eng_camera.target = self->tf.pos;
 
-	// Set hitbox
+	// Update hitbox
 	Eng_set_hitbox(&self->hitbox, self->tf.pos);
+	Eng_update_hitbox(&self->hitbox);
 
-	SDL_FPoint player_origin = {
-		50 * Eng_std_camera.zoom, 50 * Eng_std_camera.zoom
-	};
-	SDL_FRect player_rect =
-		Cam_transform_rect(&self->tf, &Eng_std_camera, NULL);
-	SDL_FPoint player_ctr = Cam_world_to_screen(self->tf.pos, &Eng_std_camera);
+	SDL_FPoint player_origin = {50 * Eng_camera.zoom, 50 * Eng_camera.zoom};
+	SDL_FRect  player_rect   = Cam_transform_rect(&self->tf, &Eng_camera, NULL);
+	SDL_FPoint player_ctr    = Cam_world_to_screen(self->tf.pos, &Eng_camera);
 
 	// Draw player
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
@@ -156,7 +156,8 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 	);
 
 	// Draw hitbox
-	Eng_draw_hitbox(&self->hitbox);
+	Eng_draw_hitbox(&self->hitbox, self->hit_something);
+	self->hit_something = false;
 
 	// Draw player modules
 	if(self->modules & (1 << PLAYERMODULE_SOLAR)) {
@@ -238,25 +239,34 @@ Error GameObject_player_update(void* data, uint32_t index_of_self) {
 		SDL_FRect retro_dest = {retro_pos.x - 12.5, retro_pos.y - 12.5, 25, 25};
 
 		SDL_SetTextureAlphaMod(
-			TEX_PROGRADE.tex, clampi(0, 255, vector_strength * 10)
+			TEX_PROGRADE.tex, CLAMP(0, 255, vector_strength * 10)
 		);
 		SDL_SetTextureAlphaMod(
-			TEX_RETROGRADE.tex, clampi(0, 255, vector_strength * 10)
+			TEX_RETROGRADE.tex, CLAMP(0, 255, vector_strength * 10)
 		);
 		SDL_RenderTexture(renderer, TEX_PROGRADE.tex, NULL, &prog_dest);
 		SDL_RenderTexture(renderer, TEX_RETROGRADE.tex, NULL, &retro_dest);
 
 		thickLineRGBA(
 			renderer, player_ctr.x, player_ctr.y, prog_pos.x, prog_pos.y, 5,
-			148, 222, 10, clampi(0, 255, vector_strength * 10)
+			148, 222, 10, CLAMP(0, 255, vector_strength * 10)
 		);
 		thickLineRGBA(
 			renderer, player_ctr.x, player_ctr.y, retro_pos.x, retro_pos.y, 5,
-			210, 219, 39, clampi(0, 255, vector_strength * 10)
+			210, 219, 39, CLAMP(0, 255, vector_strength * 10)
 		);
 	}
 
 	return true;
+}
+
+void GameObject_player_collide(void* data, void* other, uint32_t typeof_other) {
+	(void) other;
+	(void) typeof_other;
+	struct GameObject_Player* self = data;
+
+	SDL_Log("Player hit something!");
+	self->hit_something = true;
 }
 
 #endif

@@ -27,8 +27,8 @@ typedef struct {
 // -----------------------------------------------------------------------------
 extern DebugRepl Repl_repl;
 // -----------------------------------------------------------------------------
-Error Repl_init(void);
-int   Repl_run(void* data);
+Result Repl_init(void);
+int    Repl_run(void* data);
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
@@ -47,7 +47,7 @@ const char* commands[] = {
 static char* try_get_arg(uint16_t index, char** arg_buf, uint16_t arg_buf_len);
 
 // Repl ========================================================================
-Error Repl_init(void) {
+Result Repl_init(void) {
 	Repl_repl.thread = SDL_CreateThread(Repl_run, "DebugRepl", &Repl_repl);
 	ASSERT_PREDICATE_SDL(
 		Repl_repl.thread, return false;
@@ -84,7 +84,7 @@ int Repl_run(void* data) {
 				self->buf[i]         = '\0';
 				arg_buf[arg_buf_len] = last;
 				arg_buf_len++;
-				last = &self->buf[mini(self->len - 1, i + 1)];
+				last = &self->buf[MIN(self->len - 1, i + 1)];
 			};
 		}
 

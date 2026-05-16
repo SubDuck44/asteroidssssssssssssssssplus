@@ -3,15 +3,15 @@
 #include <SDL3/SDL.h>
 #include <math.h>
 
+// Math utility variables
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
-// Math utility variables
 #define RAD2DEG (180 / M_PI)
 #define DEG2RAD (1 / RAD2DEG)
 
-// Wrapping
+// Modulo Wrapping
 #define WRAP_COMPASS(x) PROPER_MOD(x, 360)
 #define PROPER_MOD(x, mod) (((x % mod) + mod) % mod)
 
@@ -22,41 +22,10 @@
 #define CODE_END "[m"
 #define CODE_CLEARSCREEN "\033[2J"
 
-// Asserts
-#ifndef NDEBUG
-#define ASSERT_PREDICATE(predicate, catch, success, error)                     \
-	do {                                                                       \
-		if(!(predicate)) {                                                     \
-			SDL_Log(error);                                                    \
-			catch                                                              \
-		} else {                                                               \
-			SDL_Log(success);                                                  \
-		}                                                                      \
-	} while(0)
-#define ASSERT_PREDICATE_SDL(predicate, catch, success, error)                 \
-	do {                                                                       \
-		if(!(predicate)) {                                                     \
-			SDL_Err(error);                                                    \
-			catch                                                              \
-		} else {                                                               \
-			SDL_Log(success);                                                  \
-		}                                                                      \
-	} while(0)
-#else
-#define ASSERT_PREDICATE(predicate, catch, success, error) (void) (predicate)
-#define ASSERT_PREDICATE_SDL(predicate, catch, success, error)                 \
-	(void) (predicate)
-#endif
-
-// Fmt error with sdl error attached
-#define SDL_Err(fmt, ...)                                                      \
-	do {                                                                       \
-		SDL_LogError(                                                          \
-			SDL_LOG_CATEGORY_APPLICATION, fmt ": %s",                          \
-			__VA_ARGS__ __VA_OPT__(, ) SDL_GetError()                          \
-		);                                                                     \
-	} while(0)
-typedef bool Error;
+// Error handling
+typedef bool Result;
+#define SUCCESS 1
+#define FAILURE 0
 
 // Dynamic arrays
 #define DEFAULT_DYNARR_CAP 16
@@ -74,7 +43,7 @@ typedef bool Error;
 	do {                                                                       \
 		(array)->len += num;                                                   \
 		while((array)->cap < (array)->len) {                                   \
-			(array)->cap = maxi((array)->cap << 1, DEFAULT_DYNARR_CAP);        \
+			(array)->cap = MAX((array)->cap << 1, DEFAULT_DYNARR_CAP);         \
 		}                                                                      \
 		(array)->arr =                                                         \
 			reallocarray((array)->arr, (array)->cap, sizeof((array)->arr[0])); \
@@ -230,26 +199,14 @@ typedef struct {
 	SDL_Point screensize;
 } Camera;
 // -----------------------------------------------------------------------------
-#define SET_TRANS_POS_BY_CTR(tf, vec2l)                                        \
-	do {                                                                       \
-		(tf).pos.x = (vec2l).x - (((tf).size.x / 2) * DEFAULT_FIXED_POINT);    \
-		(tf).pos.y = (vec2l).y - (((tf).size.y / 2) * DEFAULT_FIXED_POINT);    \
-	} while(0)
 SDL_FPoint Cam_world_to_screen(Vector2l target, Camera* cam);
 Vector2l   Cam_screen_to_world(SDL_FPoint target, Camera* cam);
 SDL_FRect  Cam_transform_rect(Transform* src, Camera* cam, SDL_FPoint* origin);
 
 // Misc
-double  clamp(double min, double max, double val);
-int32_t clampi(int32_t minimum, int32_t maximum, int32_t value);
-int32_t mini(int32_t a, int32_t b);
-int32_t maxi(int32_t a, int32_t b);
-double  min(double a, double b);
-double  max(double a, double b);
-bool    colrect_check_collision(
-	   Vector2l self_pos, Vector2f self_size, Vector2l other_pos,
-	   Vector2f other_size
-   );
+#define MIN(a, b) ((a) < (b)) ? a : b
+#define MAX(a, b) ((a) > (b)) ? a : b
+#define CLAMP(min, max, val) MIN(MAX((min), (val)), (max))
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
@@ -439,8 +396,15 @@ SDL_FPoint Cam_world_to_screen(Vector2l target, Camera* cam) {
 }
 
 Vector2l Cam_screen_to_world(SDL_FPoint target, Camera* cam) {
-	int64_t world_x = (target.x * DEFAULT_FIXED_POINT) - cam->target.x;
-	int64_t world_y = (target.y * DEFAULT_FIXED_POINT) - cam->target.y;
+	const double screen_x = target.x - (int32_t) (cam->screensize.x / 2);
+	const double screen_y = target.y - (int32_t) (cam->screensize.y / 2);
+
+	const int64_t world_x = ((((int64_t) screen_x) * DEFAULT_FIXED_POINT) +
+	                         (cam->target.x * cam->zoom)) *
+	                        (1 / cam->zoom);
+	const int64_t world_y = ((((int64_t) screen_y) * DEFAULT_FIXED_POINT) +
+	                         (cam->target.y * cam->zoom)) *
+	                        (1 / cam->zoom);
 
 	return (Vector2l) {world_x, world_y};
 }
@@ -522,45 +486,5 @@ int32_t Vec2_length(Vector2 a) {
 }
 
 // Misc ========================================================================
-
-double clamp(double minimum, double maximum, double val) {
-	return min(maximum, max(minimum, val));
-}
-
-int32_t clampi(int32_t minimum, int32_t maximum, int32_t value) {
-	return mini(maximum, maxi(minimum, value));
-}
-
-double min(double a, double b) {
-	return (a < b) ? a : b;
-}
-
-int32_t mini(int32_t a, int32_t b) {
-	return (a <= b) ? a : b;
-}
-
-double max(double a, double b) {
-	return (a > b) ? a : b;
-}
-
-int32_t maxi(int32_t a, int32_t b) {
-	return (a >= b) ? a : b;
-}
-
-bool colrect_check_collision(
-	Vector2l self_pos, Vector2f self_size, Vector2l other_pos,
-	Vector2f other_size
-) {
-	other_pos.x -= self_pos.x;
-	other_pos.y -= self_pos.y;
-
-	self_pos.x = 0;
-	self_pos.y = 0;
-
-	return (
-		self_size.x >= other_pos.x && 0 <= other_pos.x + other_size.x &&
-		self_size.y >= other_pos.x && 0 <= other_pos.y + other_size.y
-	);
-}
 
 #endif

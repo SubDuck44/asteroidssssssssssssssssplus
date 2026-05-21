@@ -7,8 +7,8 @@
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
 #include "../engine.c"
-#include "../gameobjects.c"
 #include "../utils.c"
+#include <stdlib.h>
 
 #endif
 
@@ -19,7 +19,7 @@ enum PlayermModules : uint8_t {
 	PLAYERMODULE_CLAW,
 };
 // -----------------------------------------------------------------------------
-struct GameObject_Player {
+struct Entity_player {
 	bool      alive;
 	Transform tf;
 	Vector2f  vel;
@@ -28,13 +28,13 @@ struct GameObject_Player {
 	float     force_rcs_thrusters;
 	float     force_rot;
 	ColRect   hitbox;
-	bool      hit_something;
+	bool      hit_something; // TODO: Move this to collision system
 	uint8_t   modules;
 };
 // -----------------------------------------------------------------------------
-Result GameObject_player_create(void);
-Result GameObject_player_update(void* you);
-void GameObject_player_collide(void* data, void* other, uint32_t typeof_other);
+bool Entity_player_create(void);
+void Entity_player_update(struct Entity_player* self, size_t index);
+void Entity_player_collide(void* data, void* other, uint32_t typeof_other);
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
@@ -44,41 +44,38 @@ void GameObject_player_collide(void* data, void* other, uint32_t typeof_other);
 
 #include "../res.c"
 
-Result GameObject_player_create(void) {
-	struct GameObject_Player* self =
-		SDL_malloc(sizeof(struct GameObject_Player));
-	ASSERT(self != NULL, "ERR: Failed to alloc player", return FAILURE;);
+bool Entity_player_create(void) {
+	DynArrPush(
+		&entities_players, ((struct Entity_player) {
+							   .alive               = true,
+							   .vel                 = {0},
+							   .ang_vel             = 0.0,
+							   .force_rot           = 0.2,
+							   .force_main_thruster = 0.25,
+							   .force_rcs_thrusters = 0.1,
+							   .modules             = 3,
+							   .tf                  = (Transform) {
+													.pos  = (Vector2l) {0, 0},
+													.size = (SDL_FPoint) {100, 100},
+													.ctr  = (SDL_FPoint) {50, 50},
+													.rot  = 0,
+                               },
+						   })
+	);
 
-	*self = (struct GameObject_Player) {
-		.alive               = true,
-		.vel                 = {0},
-		.ang_vel             = 0.0,
-		.force_rot           = 0.2,
-		.force_main_thruster = 0.25,
-		.force_rcs_thrusters = 0.1,
-		.modules             = 3,
-		.tf                  = (Transform) {
-							 .pos  = (Vector2l) {0, 0},
-							 .size = (SDL_FPoint) {100, 100},
-							 .ctr  = (SDL_FPoint) {50, 50},
-							 .rot  = 0,
-        },
-	};
+	struct Entity_player* self =
+		&entities_players.arr[entities_players.len - 1];
 
-	Eng_make_object(&self, GameObject_player_update, NULL);
-
-	ASSERT(Eng_make_hitbox(
-			   &self->hitbox, (void*) self, GameObject_player_collide,
-			   GAMEOBJECT_PLAYER, self->tf.pos.x, self->tf.pos.y,
-			   self->tf.size.x, self->tf.size.y
-		   ),
-	       "Failed to create hitbox for GameObject_player", return false;);
+	Eng_make_hitbox(
+		&self->hitbox, (void*) self, Entity_player_collide, ENTITY_PLAYER,
+		self->tf.pos.x, self->tf.pos.y, self->tf.size.x, self->tf.size.y
+	);
 
 	return true;
 }
 
-Result GameObject_player_update(void* you) {
-	DEREF_SELF(you, GameObject_Player);
+void Entity_player_update(struct Entity_player* self, size_t index) {
+	(void) index;
 
 	double delta_time  = Eng_get_deltatime_factor();
 	double thrust_main = self->force_main_thruster * delta_time;
@@ -122,11 +119,13 @@ Result GameObject_player_update(void* you) {
 		self->modules ^= (1 << PLAYERMODULE_CLAW);
 
 	// Set own position
+	printf("Pos was: %ld, %ld\n", self->tf.pos.x, self->tf.pos.y);
 	self->tf.pos = Vec2l_add_Vec2f(
 		self->tf.pos, Vec2f_scale(self->vel, DEFAULT_FIXED_POINT)
 	);
 	self->tf.rot      = WRAP_COMPASS((int) (self->tf.rot + self->ang_vel));
 	Eng_camera.target = self->tf.pos;
+	printf("Pos is: %ld, %ld\n", self->tf.pos.x, self->tf.pos.y);
 
 	// Update hitbox
 	Eng_set_hitbox(&self->hitbox, self->tf.pos);
@@ -136,7 +135,7 @@ Result GameObject_player_update(void* you) {
 	SDL_FRect  player_rect   = Cam_transform_rect(&self->tf, &Eng_camera, NULL);
 	SDL_FPoint player_ctr    = Cam_world_to_screen(self->tf.pos, &Eng_camera);
 
-	// Draw player
+	// Draw
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
 	SDL_RenderTextureRotated(
 		renderer, TEX_PLAYER.tex, NULL, &player_rect, self->tf.rot,
@@ -244,14 +243,12 @@ Result GameObject_player_update(void* you) {
 			210, 219, 39, CLAMP(0, 255, vector_strength * 10)
 		);
 	}
-
-	return true;
 }
 
-void GameObject_player_collide(void* data, void* other, uint32_t typeof_other) {
+void Entity_player_collide(void* data, void* other, uint32_t typeof_other) {
 	(void) other;
 	(void) typeof_other;
-	struct GameObject_Player* self = data;
+	struct Entity_player* self = data;
 
 	SDL_Log("Player hit something!");
 	self->hit_something = true;

@@ -22,23 +22,6 @@
 #define CODE_END "[m"
 #define CODE_CLEARSCREEN "\033[2J"
 
-// Error handling
-typedef bool Result;
-#define SUCCESS 1
-#define FAILURE 0
-
-#ifndef NDEBUG
-#define ASSERT(cond, mesg, catch)                                              \
-	do {                                                                       \
-		if(!(cond)) {                                                          \
-			printf((mesg));                                                    \
-			catch                                                              \
-		}                                                                      \
-	} while(0)
-#else
-#define ASSERT(cond, mesg) ;
-#endif
-
 // Dynamic arrays
 #define DEFAULT_DYNARR_CAP 16
 
@@ -64,7 +47,7 @@ typedef bool Result;
 				CODE_ERROR                                                     \
 				"FATAL: Failed to allocate memory for DynArr" CODE_END         \
 			);                                                                 \
-			Eng_exit();                                                        \
+			die = true;                                                        \
 		}                                                                      \
 	} while(0)
 
@@ -78,7 +61,7 @@ typedef bool Result;
 			reallocarray((array)->arr, (array)->cap, sizeof((array)->arr[0])); \
 		if(!((array)->arr)) {                                                  \
 			SDL_Log(CODE_ERROR "FATAL: Failed to shrink DynArr" CODE_END);     \
-			Eng_exit();                                                        \
+			die = true;                                                        \
 		}                                                                      \
 	} while(0)
 

@@ -3,6 +3,7 @@
 #define _POSIX_C_SOURCE 200809L
 #define REPL_ARGBUF_SIZE 16
 
+#include <pthread.h>
 #include <stdio.h>
 
 #include "utils.c"
@@ -18,7 +19,7 @@ enum ReplCommands : uint8_t {
 // -----------------------------------------------------------------------------
 typedef struct {
 	uint8_t        command;
-	SDL_Thread*    thread;
+	pthread_t      thread;
 	SDL_Semaphore* semaphore;
 	char*          buf;
 	size_t         cap;
@@ -27,10 +28,11 @@ typedef struct {
 // -----------------------------------------------------------------------------
 extern DebugRepl Repl_repl;
 // -----------------------------------------------------------------------------
-Result Repl_init(void);
-int    Repl_run(void* data);
+bool Repl_init(void);
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
+
+void* Repl_run(void*);
 
 // Repl
 DebugRepl Repl_repl = {0};
@@ -47,28 +49,25 @@ const char* commands[] = {
 static char* try_get_arg(uint16_t index, char** arg_buf, uint16_t arg_buf_len);
 
 // Repl ========================================================================
-Result Repl_init(void) {
-	Repl_repl.thread = SDL_CreateThread(Repl_run, "DebugRepl", &Repl_repl);
-	ASSERT_PREDICATE_SDL(
-		Repl_repl.thread, return false;
-		,
-		CODE_SUCCESS "INFO: Successfully forked thread for DebugRepl" CODE_END,
-		CODE_ERROR "FATAL: Failed to fork thread for DebugRepl" CODE_END
-	);
+bool Repl_init(void) {
 	Repl_repl.semaphore = SDL_CreateSemaphore(0);
-	ASSERT(
-		Repl_repl.semaphore, "ERR: Failed to create semaphore",
-		printf("%s\n", SDL_GetError())
-	);
+	if(!Repl_repl.semaphore) {
+		printf("ERR: Failed to create semaphore\n\t%s\n", SDL_GetError());
+		return false;
+	}
+
+	if(pthread_create(&Repl_repl.thread, NULL, Repl_run, NULL) < 0) {
+		printf("ERR: Failed to fork asriel thread\n");
+		return false;
+	}
 
 	return true;
 }
 
-int Repl_run(void* data) {
-	DebugRepl* self = data;
+void* Repl_run(void*) {
+	DebugRepl* self = &Repl_repl;
 	while(true) {
-		// Asteroids read and integrated evaluation loop
-		printf("asriel: ");
+		// Asteroids read and integrated evaluation loop (ASRIEL)
 
 		self->len = getline(&self->buf, &self->cap, stdin);
 

@@ -18,7 +18,6 @@ executable(
 	'asteroids16plus.x86_64',
 	'src/main.c',
 	'src/engine.c',
-	'src/gameobjects.c',
 	'src/utils.c',
 	'src/repl.c',
 	'src/objects/player.c',

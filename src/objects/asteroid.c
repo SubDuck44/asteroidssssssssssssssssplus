@@ -7,71 +7,67 @@
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
 #include "../engine.c"
-#include "../gameobjects.c"
 #include "../utils.c"
 
 #endif
 
-struct GameObject_Asteroid {
+struct Entity_asteroid {
 	Transform tf;
 	Vector2f  vel;
 	double    ang_vel;
 	ColRect   hitbox;
-	bool      hit_something;
+	bool      hit_something; // TODO: Move this to collision system
 };
 // -----------------------------------------------------------------------------
-Result GameObject_asteroid_create(Vector2l position);
-Result GameObject_asteroid_update(void* you);
-void   GameObject_asteroid_collide(
-	  void* self, void* other, uint32_t typeof_other
-  );
+bool Entity_asteroid_create(Vector2l position);
+void Entity_asteroid_update(struct Entity_asteroid* self, size_t index);
+void Entity_asteroid_collide(void* self, void* other, uint32_t typeof_other);
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
 #include <SDL3_gfx/SDL3_gfxPrimitives.h>
 #include <endian.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "../res.c"
 
-Result GameObject_asteroid_create(Vector2l position) {
-	struct GameObject_Asteroid* self =
-		SDL_malloc(sizeof(struct GameObject_Asteroid));
-	ASSERT(self != NULL, "ERR: Failed to alloc asteroid", return FAILURE;);
+bool Entity_asteroid_create(Vector2l position) {
+	DynArrPush(
+		&entities_asteroids, ((struct Entity_asteroid) {
+								 .ang_vel = (SDL_randf() * 4) * -(SDL_randf()),
+								 .vel     = Vec2f_force(3.0, SDL_randf() * 360),
+								 .tf      = (Transform) {
+										  .pos  = position,
+										  .size = {100, 100},
+										  .ctr  = {50, 50},
+										  .rot  = SDL_randf() * 360,
+                                 },
+							 })
+	);
 
-	*self = (struct GameObject_Asteroid) {
-		.ang_vel = (SDL_randf() * 4) * -(SDL_randf()),
-		.vel     = Vec2f_force(3.0, SDL_randf() * 360),
-		.tf      = (Transform) {
-				 .pos  = position,
-				 .size = {100, 100},
-				 .ctr  = {50, 50},
-				 .rot  = SDL_randf() * 360,
-        },
-	};
-
-	Eng_make_object((void*) self, GameObject_asteroid_update, NULL);
+	struct Entity_asteroid* self =
+		&entities_asteroids.arr[entities_asteroids.len - 1];
 
 	Eng_make_hitbox(
-		&self->hitbox, self, GameObject_asteroid_collide, GAMEOBJECT_ASTEROID,
+		&self->hitbox, self, Entity_asteroid_collide, ENTITY_ASTEROID,
 		self->tf.pos.x, self->tf.pos.y, self->tf.size.x, self->tf.size.y
 	);
+
 	return true;
 }
 
-void GameObject_asteroid_collide(
-	void* data, void* other, uint32_t typeof_other
-) {
+void Entity_asteroid_collide(void* data, void* other, uint32_t typeof_other) {
 	(void) other;
 	(void) typeof_other;
-	struct GameObject_Asteroid* self = data;
+	struct Entity_asteroid* self = data;
 
 	SDL_Log("I hit something!");
 	self->hit_something = true;
 }
 
-Result GameObject_asteroid_update(void* you) {
-	DEREF_SELF(you, GameObject_Asteroid);
+void Entity_asteroid_update(struct Entity_asteroid* self, size_t index) {
+	(void) index;
 
 	// Update
 	double deltatime = Eng_get_deltatime_factor();
@@ -93,8 +89,6 @@ Result GameObject_asteroid_update(void* you) {
 		renderer, TEX_ASTEROID.tex, NULL, &dest, self->tf.rot, NULL,
 		SDL_FLIP_NONE
 	);
-
-	return true;
 }
 
 #endif

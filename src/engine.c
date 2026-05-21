@@ -8,6 +8,9 @@
 #include <SDL3_ttf/SDL_ttf.h>
 #include <sys/types.h>
 
+// True to quit game
+extern bool die;
+
 // Title of the application the program should use
 #define APPLICATION_TITLE "Asteroidssssssssssssssss+"
 
@@ -37,11 +40,10 @@ extern const char      EMB_IOSEVKA_FONT[];
 ----------------------------------------------------------------------------- */
 
 // Control flow
-Result Eng_init(void);
-void   Eng_exit(void);
-Result Eng_input_update(SDL_Event* event);
-void   Eng_input_deferred();
-Result Eng_update_frame(void);
+bool Eng_init(void);
+void Eng_input_update(SDL_Event* event);
+void Eng_input_deferred();
+bool Eng_update_frame(void);
 
 // Collision system
 typedef void (*OnCollision)(void* self, void* owner, uint32_t typeof_owner);
@@ -70,7 +72,7 @@ typedef struct {
 // -----------------------------------------------------------------------------
 extern ColSys Eng_col;
 // _____________________________________________________________________________
-Result Eng_make_hitbox(
+void Eng_make_hitbox(
 	ColRect* dest, void* owner, OnCollision callback, uint32_t typeof_owner,
 	int64_t x, int64_t y, uint32_t width, uint32_t height
 );
@@ -89,21 +91,6 @@ extern DebugMenu Eng_debug_menu;
 extern bool      Eng_debug_vis;
 // -----------------------------------------------------------------------------
 void update_debug_menu(DebugMenu* data);
-
-// GameObject management
-#define DEREF_SELF(src, name) struct name* self = *(struct name**) (src)
-// -----------------------------------------------------------------------------
-typedef Result (*Method)(void* you);
-typedef struct {
-	void*    data;
-	uint32_t type;
-	Method   update_hook;
-	Method   kil_hook;
-} GameObject;
-DynArr(GameObject);
-// -----------------------------------------------------------------------------
-GameObject* Eng_make_object(void* data, Method update_hook, Method kill_hook);
-void        Eng_kill_object(GameObject* target);
 
 // Input handling
 #define KEYS                                                                   \
@@ -134,6 +121,27 @@ enum Keys : uint32_t {
 extern uint8_t    Eng_key_cache[KEY_NUM];
 extern SDL_FPoint Eng_mouse_pos;
 
+// Entity handling
+enum GameObject_Types : uint32_t {
+	ENTITY_NONE,
+	ENTITY_PLAYER,
+	ENTITY_ASTEROID,
+	ENTITY_NUM,
+};
+
+#include "objects/asteroid.c"
+#include "objects/player.c"
+
+#define ENTITIES                                                               \
+	X(player)                                                                  \
+	X(asteroid)
+
+#define X(type)                                                                \
+	DynArrN(struct Entity_##type, Entity_##type##s);                           \
+	extern Entity_##type##s entities_##type##s;
+ENTITIES
+#undef X
+
 // Main rendering interface
 extern SDL_Window*   window;
 extern SDL_Renderer* renderer;
@@ -143,12 +151,13 @@ extern Camera Eng_camera;
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
-#include "objects/asteroid.c"
 #include "repl.c"
 #include "res.c"
 
 #include <stdlib.h>
 #include <unistd.h>
+
+bool die = false;
 
 SDL_Point Eng_screensize = {DEFAULT_SCREENWIDTH, DEFAULT_SCREENHEIGHT};
 
@@ -171,10 +180,13 @@ bool Eng_debug_vis = true;
 bool Eng_debug_vis = false;
 #endif
 
-static GameObjects game_objects;
-
 uint8_t    Eng_key_cache[KEY_NUM] = {0};
 SDL_FPoint Eng_mouse_pos          = {0};
+
+// Entity handling
+#define X(type) Entity_##type##s entities_##type##s = {0};
+ENTITIES
+#undef X
 
 SDL_Window*   window;
 SDL_Renderer* renderer;
@@ -191,7 +203,7 @@ double Eng_get_deltatime_factor(void) {
 
 /* Initialize the engine, required for… well… everything in
  * it to work */
-Result Eng_init(void) {
+bool Eng_init(void) {
 	SDL_Log("INFO: Initializing " APPLICATION_TITLE "…");
 	bool fatal_error = false;
 
@@ -217,7 +229,7 @@ Result Eng_init(void) {
 	if(!SDL_SetDefaultTextureScaleMode(renderer, SDL_SCALEMODE_PIXELART)) {
 		printf(CODE_WARN "WARN: Failed to disable AA\n\t%s\n", SDL_GetError());
 	} else {
-		printf("INFO: Disabled AA");
+		printf("INFO: Disabled AA\n");
 	}
 
 	// Try setup font lib
@@ -324,10 +336,10 @@ load_font_finished:
 	}
 
 	// Try setup DebugRepl
-	if(Repl_init() == FAILURE) {
-		fatal_error = true;
-		printf(CODE_ERROR "ERR: Failed to start asriel" CODE_END);
-	}
+	/* if(!Repl_init()) { */
+	/* 	fatal_error = true; */
+	/* 	printf(CODE_ERROR "ERR: Failed to start asriel" CODE_END); */
+	/* } */
 
 	// Try setup DebugMenu
 	Eng_debug_menu =
@@ -356,23 +368,16 @@ load_font_finished:
 	}
 	Eng_camera = (Camera) {(Vector2l) {0, 0}, 1.0f, 1, Eng_screensize};
 
-	if(fatal_error) {
-		Eng_exit();
-		return FAILURE;
-	};
+	if(fatal_error) return false;
 
-	SDL_Log("INFO: Welcome to " APPLICATION_TITLE "!");
+	printf("INFO: Welcome to " APPLICATION_TITLE "!\n");
 
-	return SUCCESS;
-}
+	if(!Entity_player_create()) {
+		printf("ERR: Failed to create player");
+		return false;
+	}
 
-/* Runs at the end of the program. */
-void Eng_exit(void) {
-	SDL_Log("INFO: Shutting down…");
-
-	TTF_Quit(); // Shut down font library
-
-	SDL_Quit(); // Shut down SDL
+	return true;
 }
 
 /*
@@ -380,7 +385,7 @@ Run all input capturing events, return value MUST be
 returned from SDL_AppEvent() SDL_Event* event: Pass
 SDL_Event* from SDL_AppEvent()
  */
-Result Eng_input_update(SDL_Event* event) {
+void Eng_input_update(SDL_Event* event) {
 	switch(event->type) {
 	case SDL_EVENT_MOUSE_MOTION:
 		Eng_mouse_pos = (SDL_FPoint) {event->motion.x, event->motion.y};
@@ -420,7 +425,7 @@ Result Eng_input_update(SDL_Event* event) {
 		case SDLK_ESCAPE:
 			// Manual quit from the window
 			SDL_Log("INFO: Escape pressed, exiting…");
-			Eng_exit();
+			die = true;
 			break;
 
 #define X(x)                                                                   \
@@ -454,12 +459,10 @@ Result Eng_input_update(SDL_Event* event) {
 			"INFO: Received termination request from "
 			"system, exiting…"
 		);
-		Eng_exit();
+		die = true;
 	}
 
 	if(Eng_get_key_down(KEY_F3)) Eng_debug_vis = !Eng_debug_vis;
-
-	return true;
 }
 
 void Eng_input_deferred(void) {
@@ -472,7 +475,7 @@ void Eng_input_deferred(void) {
 /*
 Process all callbacks in the update_callbacks queue
 */
-Result Eng_update_frame(void) {
+bool Eng_update_frame(void) {
 	// Start frame timer
 	const uint64_t frametime_start = SDL_GetTicksNS();
 
@@ -483,15 +486,15 @@ Result Eng_update_frame(void) {
 	}
 
 	if(Eng_get_key_pressed(KEY_MOUSE_LEFT)) {
-		GameObject_asteroid_create(
-			Cam_screen_to_world(Eng_mouse_pos, &Eng_camera)
-		);
+		Entity_asteroid_create(Cam_screen_to_world(Eng_mouse_pos, &Eng_camera));
 	}
 #define DUMP_COL_X                                                             \
 	do {                                                                       \
 		SDL_Log("=Dumping col x==");                                           \
 		for(ssize_t i = 0; i < Eng_col.x.len; i++) {                           \
-			SDL_Log("%ld - %ld", i, Eng_col.x.arr[i].val);                     \
+			SDL_Log(                                                           \
+				"%ld - %ld", i, Eng_col.x.arr[i].val / DEFAULT_FIXED_POINT     \
+			);                                                                 \
 		}                                                                      \
 		SDL_Log("================");                                           \
 		ASSERT_COL_X;                                                          \
@@ -500,7 +503,9 @@ Result Eng_update_frame(void) {
 	do {                                                                       \
 		SDL_Log("=Dumping col y==");                                           \
 		for(ssize_t i = 0; i < Eng_col.y.len; i++) {                           \
-			SDL_Log("%ld - %ld", i, Eng_col.y.arr[i].val);                     \
+			SDL_Log(                                                           \
+				"%ld - %ld", i, Eng_col.y.arr[i].val / DEFAULT_FIXED_POINT     \
+			);                                                                 \
 		}                                                                      \
 		SDL_Log("================");                                           \
 		ASSERT_COL_Y;                                                          \
@@ -513,7 +518,7 @@ Result Eng_update_frame(void) {
 					CODE_WARN                                                  \
 					"WARNING: X array violated sorting assumption" CODE_END    \
 				);                                                             \
-				Eng_exit();                                                    \
+				die = true;                                                    \
 			}                                                                  \
 		}                                                                      \
 	} while(0)
@@ -525,7 +530,7 @@ Result Eng_update_frame(void) {
 					CODE_WARN                                                  \
 					"WARNING: Y array violated sorting assumption" CODE_END    \
 				);                                                             \
-				Eng_exit();                                                    \
+				die = true;                                                    \
 			}                                                                  \
 		}                                                                      \
 	} while(0);
@@ -551,11 +556,13 @@ Result Eng_update_frame(void) {
 		Eng_camera.zoom = 1 * pow(1.1, Eng_camera.zoom_factor);
 	}
 
-	for(uint32_t i = 0; i < game_objects.len; i++) {
-		if(game_objects.arr[i].update_hook(&game_objects.arr[i]) == false) {
-			return false;
-		}
-	}
+#define X(type)                                                                \
+	DynArrLoop(&entities_##type##s,                                            \
+	           Entity_##type##_update(&entities_##type##s.arr[i], i);          \
+	           printf("Updated " #type "\n"););
+
+	ENTITIES
+#undef X
 
 	// Draw debug menu if debug is visible
 	update_debug_menu(&Eng_debug_menu);
@@ -567,7 +574,7 @@ Result Eng_update_frame(void) {
 		switch(Repl_repl.command) {
 		case COMMAND_EXIT:
 			SDL_Log("INFO: Received exit command from DebugRepl, exiting…");
-			Eng_exit();
+			die = true;
 			break;
 		}
 	}
@@ -587,6 +594,8 @@ Result Eng_update_frame(void) {
 
 	Eng_current_fps =
 		(((double) (1'000'000'000) / last_frame_time) + Eng_current_fps) / 2;
+
+	if(die) return false;
 
 	return true;
 }
@@ -691,7 +700,7 @@ static ssize_t sort_colvalue(bool is_y, ssize_t index) {
 	return index;
 }
 
-Result Eng_make_hitbox(
+void Eng_make_hitbox(
 	ColRect* dest, void* owner, OnCollision callback, uint32_t typeof_owner,
 	int64_t x, int64_t y, uint32_t width, uint32_t height
 ) {
@@ -713,8 +722,6 @@ Result Eng_make_hitbox(
 
 	dest->x_ind = sort_colvalue(0, Eng_col.x.len - 1);
 	dest->y_ind = sort_colvalue(1, Eng_col.y.len - 1);
-
-	return true;
 }
 
 void Eng_free_hitbox(ColRect* target) {
@@ -790,12 +797,11 @@ void update_debug_menu(DebugMenu* data) {
 		snprintf(
 			fps_string, sizeof(fps_string),
 			"FPS: %d\nCam Pos: %ld %ld \nMouse Pos: %f %f"
-			"\nPos at mouse: %ld %ld"
-			"\nGameObjects loaded: %lu",
+			"\nPos at mouse: %ld %ld",
 			Eng_current_fps, Eng_camera.target.x / DEFAULT_FIXED_POINT,
 			Eng_camera.target.y / DEFAULT_FIXED_POINT, Eng_mouse_pos.x,
 			Eng_mouse_pos.y, mouse_world_pos.x / DEFAULT_FIXED_POINT,
-			mouse_world_pos.y / DEFAULT_FIXED_POINT, game_objects.len
+			mouse_world_pos.y / DEFAULT_FIXED_POINT
 		);
 		TTF_SetTextString(data->display, fps_string, sizeof(fps_string));
 
@@ -805,32 +811,4 @@ void update_debug_menu(DebugMenu* data) {
 }
 
 // GameObject management
-GameObject* Eng_make_object(void* data, Method update_hook, Method kill_hook) {
-	DynArrExtend(&game_objects, 1);
-	game_objects.arr[game_objects.len - 1] = (GameObject) {
-		.data        = data,
-		.update_hook = update_hook,
-		.kil_hook    = kill_hook,
-	};
-	return (void*) &game_objects.arr[game_objects.len - 1];
-}
-
-void Eng_kill_object(GameObject* target) {
-	size_t index = 0;
-
-	for(size_t iter = 0; iter < game_objects.len; iter++) {
-		if(&game_objects.arr[iter] == target) {
-			index = iter;
-			goto success;
-		}
-	}
-	printf(CODE_WARN "WARN: Failed to kill GameObject: Not found" CODE_END);
-	return;
-
-success:
-
-	if(target->kil_hook != NULL) target->kil_hook(target);
-	DynArrRemove(&game_objects, index);
-}
-
 #endif

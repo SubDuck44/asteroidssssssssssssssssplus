@@ -91,25 +91,19 @@ extern bool      Eng_debug_vis;
 void update_debug_menu(DebugMenu* data);
 
 // GameObject management
-#define GAMEOBJECT_CREATE_SUCCESS "INFO: Successfully created GameObject"
-#define GAMEOBJECT_CREATE_FAILURE "FATAL: Failed to create GameObject"
+#define DEREF_SELF(src, name) struct name* self = *(struct name**) (src)
 // -----------------------------------------------------------------------------
+typedef Result (*Method)(void* you);
 typedef struct {
-	uint32_t type;
 	void*    data;
+	uint32_t type;
+	Method   update_hook;
+	Method   kil_hook;
 } GameObject;
-typedef Result (*Method)(void* data, uint32_t index);
-typedef struct {
-	Method func;
-	void*  argv;
-} UpdateHook;
+DynArr(GameObject);
 // -----------------------------------------------------------------------------
-Result
-Eng_create_object(void* src, void** new_ref, size_t data_size, uint32_t type);
-Result Eng_destroy_object(uint32_t target);
-Result Eng_hook_update(Method func, void* data);
-Result Eng_unhook_update(void* data);
-void*  Eng_get_gameobject(uint32_t type, int32_t index);
+GameObject* Eng_make_object(void* data, Method update_hook, Method kill_hook);
+void        Eng_kill_object(GameObject* target);
 
 // Input handling
 #define KEYS                                                                   \
@@ -177,10 +171,7 @@ bool Eng_debug_vis = true;
 bool Eng_debug_vis = false;
 #endif
 
-DynArr(GameObject);
 static GameObjects game_objects;
-DynArr(UpdateHook);
-static UpdateHooks update_callbacks;
 
 uint8_t    Eng_key_cache[KEY_NUM] = {0};
 SDL_FPoint Eng_mouse_pos          = {0};
@@ -560,9 +551,8 @@ Result Eng_update_frame(void) {
 		Eng_camera.zoom = 1 * pow(1.1, Eng_camera.zoom_factor);
 	}
 
-	for(uint32_t i = 0; i < update_callbacks.len; i++) {
-		if(update_callbacks.arr[i].func(update_callbacks.arr[i].argv, i) ==
-		   false) {
+	for(uint32_t i = 0; i < game_objects.len; i++) {
+		if(game_objects.arr[i].update_hook(&game_objects.arr[i]) == false) {
 			return false;
 		}
 	}
@@ -801,12 +791,11 @@ void update_debug_menu(DebugMenu* data) {
 			fps_string, sizeof(fps_string),
 			"FPS: %d\nCam Pos: %ld %ld \nMouse Pos: %f %f"
 			"\nPos at mouse: %ld %ld"
-			"\nGameObjects loaded: %lu, Updates scheduled: %lu",
+			"\nGameObjects loaded: %lu",
 			Eng_current_fps, Eng_camera.target.x / DEFAULT_FIXED_POINT,
 			Eng_camera.target.y / DEFAULT_FIXED_POINT, Eng_mouse_pos.x,
 			Eng_mouse_pos.y, mouse_world_pos.x / DEFAULT_FIXED_POINT,
-			mouse_world_pos.y / DEFAULT_FIXED_POINT, game_objects.len,
-			update_callbacks.len
+			mouse_world_pos.y / DEFAULT_FIXED_POINT, game_objects.len
 		);
 		TTF_SetTextString(data->display, fps_string, sizeof(fps_string));
 
@@ -816,150 +805,32 @@ void update_debug_menu(DebugMenu* data) {
 }
 
 // GameObject management
-// =======================================================
-
-/*
-Register and allocate a GameObject
-void* src:          Give desired default values for data in
-struct of given type size_t data_size:   Give size of
-reserved space for GameObject uint32_t type:      Give type
-of GameObject for recognition
- */
-Result
-Eng_create_object(void* src, void** new_ref, size_t data_size, uint32_t type) {
-	if(!src) {
-		SDL_Log(
-			CODE_ERROR "ERROR: Tried to create GameObject "
-					   "of type %d with null "
-					   "data: %p" CODE_END,
-			type, src
-		);
-		return true;
-	}
-
-	void* data = malloc(data_size);
-
-	if(!data) {
-		SDL_Log(
-			CODE_ERROR "ERROR: Failed to allocate memory "
-					   "for GameObject of "
-					   "type %d" CODE_END,
-			type
-		);
-		return false;
-	}
-
-	memcpy(data, src, data_size);
-	*new_ref                               = data;
-	GameObject just_another_useless_object = {type, data};
-
-	DynArrPush(&game_objects, just_another_useless_object);
-
-	return true;
+GameObject* Eng_make_object(void* data, Method update_hook, Method kill_hook) {
+	DynArrExtend(&game_objects, 1);
+	game_objects.arr[game_objects.len - 1] = (GameObject) {
+		.data        = data,
+		.update_hook = update_hook,
+		.kil_hook    = kill_hook,
+	};
+	return (void*) &game_objects.arr[game_objects.len - 1];
 }
 
-/*
-Unregister and deallocate a GameObject
-uint32_t target: Give uint32 to index target GameObject in
-game_objects array
- */
-Result Eng_destroy_object(uint32_t target) {
-	if(target >= game_objects.len) {
-		SDL_Log(
-			CODE_ERROR "ERROR: Tried to destroy invalid "
-					   "GameObject %d: Index out of "
-					   "range" CODE_END,
-			target
-		);
-		return true;
-	}
+void Eng_kill_object(GameObject* target) {
+	size_t index = 0;
 
-	if(!game_objects.arr[target].data) {
-		SDL_Log(
-			CODE_ERROR "ERROR. Tried to destroy GameObject %d with "
-					   "null data" CODE_END,
-			target
-		);
-		return true;
-	}
-	free(game_objects.arr[target].data);
-
-	if(target != game_objects.len - 1) {
-		game_objects.arr[target] = game_objects.arr[game_objects.len - 1];
-	}
-	game_objects.len--;
-	return true;
-}
-
-/*
-Register a callback to be called at Eng_TickOnce()
-Method func: Give callback function pointer according to
-Method signature void* data:  Give optional varargs as
-argument to callback
-*/
-Result Eng_hook_update(Method func, void* data) {
-	if(!func) {
-		SDL_Log(
-			CODE_ERROR "ERROR: Tried to hook UpdateHook "
-					   "callback with null "
-					   "function pointer" CODE_END
-		);
-		return true;
-	}
-
-	UpdateHook update_hook = {func, data};
-
-	DynArrPush(&update_callbacks, update_hook);
-
-	return true;
-}
-
-/*
-Unregister a callback, so it is no longer called on
-Eng_TickOnce() void* data: Give GameObject.data pointer of
-target GameObject
- */
-Result Eng_unhook_update(void* data) {
-	if(!data) {
-		SDL_Log(
-			CODE_ERROR "ERROR: Tried to unhook null "
-					   "Update callback" CODE_END
-		);
-		return true;
-	}
-
-	ssize_t* found_index = NULL;
-
-	DynArrLoop(
-		&update_callbacks,
-		if(update_callbacks.arr[i].argv == data) { *found_index = i; }
-	);
-
-	if(!found_index) {
-		SDL_Log(
-			CODE_ERROR "ERROR: Tried to unhook invalid Update "
-					   "callback: %p" CODE_END,
-			data
-		);
-		return true;
-	}
-
-	return true;
-}
-
-void* Eng_get_gameobject(uint32_t type, int32_t index) {
-	DynArrLoop(
-		&game_objects, if(game_objects.arr[i].type == type) {
-			index--;
-			if(index < 0) return game_objects.arr[i].data;
+	for(size_t iter = 0; iter < game_objects.len; iter++) {
+		if(&game_objects.arr[iter] == target) {
+			index = iter;
+			goto success;
 		}
-	);
-	SDL_Log(
-		CODE_WARN
-		"ERROR: Failed to find component of type %u at index %u" CODE_END,
-		type, index
-	);
-	return NULL;
+	}
+	printf(CODE_WARN "WARN: Failed to kill GameObject: Not found" CODE_END);
+	return;
+
+success:
+
+	if(target->kil_hook != NULL) target->kil_hook(target);
+	DynArrRemove(&game_objects, index);
 }
 
 #endif

@@ -27,6 +27,18 @@ typedef bool Result;
 #define SUCCESS 1
 #define FAILURE 0
 
+#ifndef NDEBUG
+#define ASSERT(cond, mesg, catch)                                              \
+	do {                                                                       \
+		if(!(cond)) {                                                          \
+			printf((mesg));                                                    \
+			catch                                                              \
+		}                                                                      \
+	} while(0)
+#else
+#define ASSERT(cond, mesg) ;
+#endif
+
 // Dynamic arrays
 #define DEFAULT_DYNARR_CAP 16
 

@@ -33,7 +33,7 @@ struct GameObject_Player {
 };
 // -----------------------------------------------------------------------------
 Result GameObject_player_create(void);
-Result GameObject_player_update(void* data, uint32_t index_of_self);
+Result GameObject_player_update(void* you);
 void GameObject_player_collide(void* data, void* other, uint32_t typeof_other);
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
@@ -45,52 +45,40 @@ void GameObject_player_collide(void* data, void* other, uint32_t typeof_other);
 #include "../res.c"
 
 Result GameObject_player_create(void) {
-	struct GameObject_Player self = {
+	struct GameObject_Player* self =
+		SDL_malloc(sizeof(struct GameObject_Player));
+	ASSERT(self != NULL, "ERR: Failed to alloc player", return FAILURE;);
+
+	*self = (struct GameObject_Player) {
 		.alive               = true,
 		.vel                 = {0},
 		.ang_vel             = 0.0,
 		.force_rot           = 0.2,
 		.force_main_thruster = 0.25,
 		.force_rcs_thrusters = 0.1,
-		.modules             = 3
+		.modules             = 3,
+		.tf                  = (Transform) {
+							 .pos  = (Vector2l) {0, 0},
+							 .size = (SDL_FPoint) {100, 100},
+							 .ctr  = (SDL_FPoint) {50, 50},
+							 .rot  = 0,
+        },
 	};
-	self.tf = (Transform) {
-		.pos  = (Vector2l) {0, 0},
-		.size = (SDL_FPoint) {100, 100},
-		.ctr  = (SDL_FPoint) {50, 50},
-		.rot  = 0,
-	};
-	struct GameObject_Player* new = NULL;
 
-	ASSERT_PREDICATE(
-		Eng_create_object(
-			&self, (void*) &new, sizeof(struct GameObject_Player),
-			GAMEOBJECT_PLAYER
-		),
-		return false;
-		, CODE_SUCCESS "INFO: Successfully created GameObject: player" CODE_END,
-		CODE_ERROR "FATAL: Failed to create GameObject player" CODE_END
-	);
-	ASSERT_PREDICATE(
-		Eng_hook_update(GameObject_player_update, new), return false;
-		,
-		CODE_SUCCESS "INFO: Successfully hooked update callback for GameObject "
-					 "player" CODE_END,
-		CODE_ERROR "FATAL: Failed to hook update callback for GameObject "
-				   "player" CODE_END
-	);
+	Eng_make_object(&self, GameObject_player_update, NULL);
 
-	Eng_make_hitbox(
-		&new->hitbox, (void*) new, GameObject_player_collide, GAMEOBJECT_PLAYER,
-		new->tf.pos.x, new->tf.pos.y, new->tf.size.x, new->tf.size.y
-	);
+	ASSERT(Eng_make_hitbox(
+			   &self->hitbox, (void*) self, GameObject_player_collide,
+			   GAMEOBJECT_PLAYER, self->tf.pos.x, self->tf.pos.y,
+			   self->tf.size.x, self->tf.size.y
+		   ),
+	       "Failed to create hitbox for GameObject_player", return false;);
 
 	return true;
 }
 
-Result GameObject_player_update(void* data, uint32_t index_of_self) {
-	(void) index_of_self;
-	struct GameObject_Player* self = data;
+Result GameObject_player_update(void* you) {
+	DEREF_SELF(you, GameObject_Player);
 
 	double delta_time  = Eng_get_deltatime_factor();
 	double thrust_main = self->force_main_thruster * delta_time;

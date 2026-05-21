@@ -56,12 +56,9 @@ Result Repl_init(void) {
 		CODE_ERROR "FATAL: Failed to fork thread for DebugRepl" CODE_END
 	);
 	Repl_repl.semaphore = SDL_CreateSemaphore(0);
-	ASSERT_PREDICATE_SDL(
-		Repl_repl.semaphore, return false;
-		,
-		CODE_SUCCESS
-		"INFO: Successfully created semaphore for DebugRepl" CODE_END,
-		CODE_ERROR "FATAL: Failed to create semaphore for DebugRepl" CODE_END
+	ASSERT(
+		Repl_repl.semaphore, "ERR: Failed to create semaphore",
+		printf("%s\n", SDL_GetError())
 	);
 
 	return true;

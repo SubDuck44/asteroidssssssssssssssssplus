@@ -27,13 +27,13 @@ static V2i64 roll_spawn(void) {
 }
 
 void _asteroidCreate(Asteroid* self) {
-#define f (0.1 / 16)
+#define f (1.0 / 16)
 #define v (SDL_randf() * f - f / 2) * FIXED_POINT
 
 	*self = (Asteroid) {
 		.vel = v2i64(v, v),
 		.rot = SDL_rand(360),
-		.rvl = (SDL_randf() * 2 - 1) * f,
+		.rvl = (SDL_randf() * 2 - 1) * (f / 3),
 		.scl = SDL_randf() * 2 + 5,
 		.hit = (Hitbox) {
 			.hw = TEX_ASTEROID.w / 2 * 0.8,
@@ -41,7 +41,10 @@ void _asteroidCreate(Asteroid* self) {
 		},
 	};
 
-	self->pos = roll_spawn();
+	do {
+		self->pos = roll_spawn();
+		hitboxUpdate(self);
+	} while(is_occupied(self->hit));
 }
 
 void asteroidUpdate(Asteroid* self) {

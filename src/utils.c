@@ -60,6 +60,8 @@ extern double  fps;
 
 extern bool debugVisible;
 
+extern uint32_t score;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define Color(color)                                                           \
@@ -181,6 +183,8 @@ int64_t dtf;
 double  fps;
 
 bool debugVisible;
+
+uint32_t score = 0;
 
 V2d rotate(V2d vec, double rot) {
 	return m2d_mul_vec(m2d_rot(rot * DEG2RAD), vec);

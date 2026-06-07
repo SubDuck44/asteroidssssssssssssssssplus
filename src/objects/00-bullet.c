@@ -1,6 +1,6 @@
 #include "object.c"
 
-const uint64_t lifetime = 3L * BIL; // 3 seconds fuse timeout
+const uint64_t lifetime = 5L * BIL; // 3 seconds fuse timeout
 
 FIELDS({
 	uint64_t timestamp; //
@@ -8,7 +8,7 @@ FIELDS({
 
 void _bulletCreate(Bullet* self) {
 	*self = (Bullet) {
-		.scl       = 0.5,
+		.scl       = 0.25,
 		.timestamp = SDL_GetTicksNS(),
 		.hit       = (Hitbox) {
 				  .hw = TEX_PENETRATOR.h / 2.0,
@@ -28,23 +28,34 @@ void bulletUpdate(Bullet* self) {
 	PoolLoop(asteroidPool, {
 		if(intersect(self->hit, it->hit)) {
 
+			score += 1;
+
+			V2i64  pos = it->pos;
+			V2i64  vel = it->vel;
+			double scl = it->scl * 0.5;
+
 			// Split/die
-			double new_scl = it->scl / 2;
-			if(new_scl > 0.50) {
-				Asteroid* as1 = asteroidCreate();
-				Asteroid* as2 = asteroidCreate();
-
-				as1->pos = as2->pos = it->pos;
-				as1->scl = as2->scl = new_scl;
-
-				as1->vel =
-					v2i64_imp(it->vel, FIXED_POINT / 10.0, self->rot + 45);
-				as2->vel =
-					v2i64_imp(it->vel, FIXED_POINT / 10.0, self->rot - 45);
-			}
-
 			asteroidDelete(it);
 			bulletDelete(self);
+
+			if(scl > 0.50) {
+				/* I AM GOING TO FUCKING KILL MYSELF
+				  "Oh yeah, let me just use ints for the coords instead of the
+				   industry standard thats there for a GOOD FUCKING REASON"
+				   Its all the fault of the float gang */
+				const double ugly_hack_to_save_me =
+					v2d_len(v2d2i64(self->vel)) * 0.1;
+
+				Asteroid* as1 = asteroidCreate();
+				as1->pos      = pos;
+				as1->scl      = scl;
+				as1->vel = v2i64_imp(vel, ugly_hack_to_save_me, self->rot + 45);
+
+				Asteroid* as2 = asteroidCreate();
+				as2->pos      = pos;
+				as2->scl      = scl;
+				as2->vel = v2i64_imp(vel, ugly_hack_to_save_me, self->rot - 45);
+			}
 
 			break;
 		}

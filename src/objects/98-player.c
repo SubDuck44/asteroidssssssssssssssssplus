@@ -56,10 +56,11 @@ void playerUpdate(Player* self) {
 		/* self->rvl = 0; */
 	}
 
-	if(DOWN(SPACE)) {
+	// Launch penetrator
+	if(PRES(SPACE)) {
 		Bullet* bullet = bulletCreate();
 		bullet->pos    = self->pos;
-		bullet->vel    = v2i64_imp(self->vel, FIXED_POINT, self->rot);
+		bullet->vel    = v2i64_imp(self->vel, FIXED_POINT * 0.5, self->rot);
 		bullet->rot    = self->rot;
 	}
 
@@ -107,7 +108,7 @@ void playerRender(Player* self) {
 	}
 
 	// draw velocity vector
-	double mag = v2d_len(vel);
+	double mag = v2d_len(vel) * 10;
 	if(mag > 2) {
 		V2d prog = v2d_add(pos, v2d_mul(vel, v2dd(10 * cam.scl)));
 		V2d retr = v2d_sub(pos, v2d_mul(vel, v2dd(10 * cam.scl)));

@@ -40,7 +40,8 @@ const char* showKeyState(KeyState ks);
 	X(0)                                                                       \
 	X(1)                                                                       \
 	X(2)                                                                       \
-	X(3)
+	X(3)                                                                       \
+	X(SPACE)
 
 typedef enum {
 #define X(x) KEY_MOUSE_##x,

@@ -1,11 +1,13 @@
 #include "init.c"
 #include "objects.c"
 
+#define MIN_ASTEROIDS 20
+
 static void mkObjects(void) {
 	debugCreate();
 	playerCreate();
 
-	for(size_t i = 0; i < 20; i++) {
+	for(size_t i = 0; i < MIN_ASTEROIDS; i++) {
 		asteroidCreate();
 	}
 }
@@ -40,15 +42,22 @@ int main(void) {
 		OBJECTS
 #undef X
 
+		while(asteroidPool.used.len - asteroidPool.free.len < MIN_ASTEROIDS) {
+			asteroidCreate();
+		}
+
 		SDL_SetRenderDrawColor(renderer, GRAY);
 		SDL_RenderClear(renderer);
 
 #define X(name)                                                                \
 	PoolLoop(name##Pool, {                                                     \
 		name##Render(it);                                                      \
-		V2d pos = wld2cam(it->pos);                                            \
-		lineRGBA(renderer, pos.x - 10, pos.y, pos.x + 10, pos.y, CYA);         \
-		lineRGBA(renderer, pos.x, pos.y - 10, pos.x, pos.y + 10, CYA);         \
+		if(debugVisible) {                                                     \
+			V2d pos = wld2cam(it->pos);                                        \
+			lineRGBA(renderer, pos.x - 10, pos.y, pos.x + 10, pos.y, CYA);     \
+			lineRGBA(renderer, pos.x, pos.y - 10, pos.x, pos.y + 10, CYA);     \
+			hitboxRender(it);                                                  \
+		}                                                                      \
 	});
 
 		OBJECTS

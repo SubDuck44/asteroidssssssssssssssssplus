@@ -27,7 +27,12 @@
 #define sind(x) (sin((x) * DEG2RAD))
 #define cosd(x) (cos((x) * DEG2RAD))
 
+V2d rotate(V2d vec, double rot);
+
 double mod(double a, double b);
+
+/** Applies a force with magnitude m and direction r to a vector base */
+V2i64 v2i64_imp(V2i64 base, double m, double r);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,10 +182,19 @@ double  fps;
 
 bool debugVisible;
 
+V2d rotate(V2d vec, double rot) {
+	return m2d_mul_vec(m2d_rot(rot * DEG2RAD), vec);
+}
+
 double mod(double a, double b) {
 	double z = fmod(a, b);
 	if(z < 0) z += b;
 	return z;
+}
+
+V2i64 v2i64_imp(V2i64 base, double m, double r) {
+	V2d vec = rotate(v2d(m, 0), r);
+	return v2i64_add(v2i642d(vec), base);
 }
 
 #endif

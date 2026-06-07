@@ -4,8 +4,8 @@ FIELDS({
 	uint8_t modules; //
 })
 
-#define FORCE_FWD (0.25 / 16)
-#define FORCE_RCS (0.1 / 16)
+#define FORCE_FWD (0.01 / 16)
+#define FORCE_RCS (0.005 / 16)
 #define FORCE_ROT (0.1 / 16)
 
 enum {
@@ -22,10 +22,11 @@ void _playerCreate(Player* self) {
 		.rot     = 0,
 		.scl     = 2,
 		.modules = MOD(SOLAR) | MOD(ANTENNA),
+		.hit     = (Hitbox) {
+				.hw = TEX_PLAYER.w / 2 - 9,
+				.hh = TEX_PLAYER.h / 2 + TEX_SOLAR_PANELS.h - 1,
+        },
 	};
-
-	self->hit.hw = (TEX_PLAYER.w / 2 - 9) * self->scl;
-	self->hit.hh = (TEX_PLAYER.h / 2 + TEX_SOLAR_PANELS.h - 1) * self->scl;
 }
 
 void playerUpdate(Player* self) {
@@ -55,6 +56,13 @@ void playerUpdate(Player* self) {
 		/* self->rvl = 0; */
 	}
 
+	if(DOWN(SPACE)) {
+		Bullet* bullet = bulletCreate();
+		bullet->pos    = self->pos;
+		bullet->vel    = v2i64_imp(self->vel, FIXED_POINT, self->rot);
+		bullet->rot    = self->rot;
+	}
+
 	/* if(PRES(1)) self->modules ^= MOD(SOLAR); */
 
 	/* if(PRES(2)) { */
@@ -69,10 +77,6 @@ void playerUpdate(Player* self) {
 
 	update(self);
 	centerCamera(self->pos);
-
-	PoolLoop(asteroidPool, {
-		if(intersect(self->hit, it->hit)) asteroidDelete(it); //
-	});
 }
 
 void playerRender(Player* self) {
@@ -91,10 +95,10 @@ void playerRender(Player* self) {
 	if(DOWN(LALT)) {
 		V2d len = v2d(75, 0);
 
-		V2d bow = v2d_add(pos, rotate(len, 0));   // bow, front
-		V2d stb = v2d_add(pos, rotate(len, 90));  // starboard, right
-		V2d str = v2d_add(pos, rotate(len, 180)); // stern, back
-		V2d prt = v2d_add(pos, rotate(len, 270)); // port, left
+		V2d bow = v2d_add(pos, rotate(len, self->rot + 0));  // bow, front
+		V2d stb = v2d_add(pos, rotate(len, self->rot + 90)); // starboard, right
+		V2d str = v2d_add(pos, rotate(len, self->rot + 180)); // stern, back
+		V2d prt = v2d_add(pos, rotate(len, self->rot + 270)); // port, left
 
 		thickLineRGBA(renderer, V2d_Arg(pos), V2d_Arg(bow), 3, PROG + 255);
 		thickLineRGBA(renderer, V2d_Arg(pos), V2d_Arg(stb), 3, GRN);
@@ -135,6 +139,4 @@ void playerRender(Player* self) {
 		SDL_RenderTexture(renderer, TEX_PROGRADE.tex, NULL, &progDst);
 		SDL_RenderTexture(renderer, TEX_RETROGRADE.tex, NULL, &retrDst);
 	}
-
-	hitboxRender(self);
 }

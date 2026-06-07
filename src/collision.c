@@ -17,8 +17,9 @@ typedef struct Hitbox Hitbox;
 
 bool intersect(Hitbox h1, Hitbox h2);
 
-#define hitboxUpdate(obj) _hitboxUpdate(obj->pos, obj->rot, &obj->hit);
-void _hitboxUpdate(V2i64 pos, double rot, Hitbox* hit);
+#define hitboxUpdate(obj)                                                      \
+	_hitboxUpdate(obj->pos, obj->rot, obj->scl, &obj->hit);
+void _hitboxUpdate(V2i64 _pos, double rot, double scl, Hitbox* hit);
 
 #define hitboxRender(obj) _hitboxRender(obj->hit)
 void _hitboxRender(Hitbox hit);
@@ -84,18 +85,16 @@ bool intersect(Hitbox hit1, Hitbox hit2) {
 	return true;
 }
 
-#define rotate(vector) m2d_mul_vec(m2d_rot((rot) * DEG2RAD), vector)
-
-void _hitboxUpdate(V2i64 _pos, double rot, Hitbox* hit) {
-	double hw = hit->hw * FIXED_POINT;
-	double hh = hit->hh * FIXED_POINT;
+void _hitboxUpdate(V2i64 _pos, double rot, double scl, Hitbox* hit) {
+	double hw = hit->hw * FIXED_POINT * scl;
+	double hh = hit->hh * FIXED_POINT * scl;
 
 	V2d pos = v2i64_2d(_pos);
 
-	hit->vertices[0] = v2d_add(pos, rotate(v2d(+hw, +hh))); // bottom right
-	hit->vertices[1] = v2d_add(pos, rotate(v2d(-hw, +hh))); // bottom left
-	hit->vertices[2] = v2d_add(pos, rotate(v2d(-hw, -hh))); // top left
-	hit->vertices[3] = v2d_add(pos, rotate(v2d(+hw, -hh))); // top right
+	hit->vertices[0] = v2d_add(pos, rotate(v2d(+hw, +hh), rot)); // bottom right
+	hit->vertices[1] = v2d_add(pos, rotate(v2d(-hw, +hh), rot)); // bottom left
+	hit->vertices[2] = v2d_add(pos, rotate(v2d(-hw, -hh), rot)); // top left
+	hit->vertices[3] = v2d_add(pos, rotate(v2d(+hw, -hh), rot)); // top right
 }
 
 void _hitboxRender(Hitbox hit) {

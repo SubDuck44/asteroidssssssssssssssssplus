@@ -4,12 +4,10 @@
 
 ObjID getOID(void* obj);
 
-#define rotate(vector, angle)                                                  \
-	m2d_mul_vec(m2d_rot((self->rot + angle) * DEG2RAD), vector)
-
 #define accel(force, angle)                                                    \
 	self->vel = v2i64_add(                                                     \
-		self->vel, v2i642d(rotate(v2d(force * FIXED_POINT, 0), angle))         \
+		self->vel,                                                             \
+		v2i642d(rotate(v2d(force * FIXED_POINT, 0), self->rot + angle))        \
 	)
 
 #define update(obj) _update(&obj->pos, obj->vel, &obj->rot, obj->rvl)

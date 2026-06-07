@@ -1,485 +1,186 @@
 #pragma once
 
 #include <SDL3/SDL.h>
-#include <math.h>
+#include <SDL3_ttf/SDL_ttf.h>
+#include <err.h>
+#include <la.h>
+#include <stdlib.h>
 
-// Math utility variables
+////////////////////////////////////////////////////////////////////////////////
+
+#define ARRLEN(x) (sizeof(x) / sizeof(*(x)))
+
+#define BREAK __asm__("int3");
+
+////////////////////////////////////////////////////////////////////////////////
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
+#define max(a, b) ((a) > (b) ? (a) : (b))
+#define min(a, b) ((a) < (b) ? (a) : (b))
+
 #define RAD2DEG (180 / M_PI)
 #define DEG2RAD (1 / RAD2DEG)
 
-// Modulo Wrapping
-#define WRAP_COMPASS(x) PROPER_MOD(x, 360)
-#define PROPER_MOD(x, mod) (((x % mod) + mod) % mod)
+#define sind(x) (sin((x) * DEG2RAD))
+#define cosd(x) (cos((x) * DEG2RAD))
 
-// Terminal control codes
-#define CODE_ERROR "[1;31m"
-#define CODE_WARN "[1;33m"
-#define CODE_SUCCESS "[1;32m"
-#define CODE_END "[m"
-#define CODE_CLEARSCREEN "\033[2J"
+double mod(double a, double b);
 
-// Dynamic arrays
-#define DEFAULT_DYNARR_CAP 16
+////////////////////////////////////////////////////////////////////////////////
 
-#define DynArrN(type, name)                                                    \
+#define SDL_Die(msg) errx(1, msg ": %s", SDL_GetError())
+
+#define WINDOW_TITLE "Asteroidssssssssssssssss+"
+#define WINDOW_WIDTH 1280
+#define WINDOW_HEIGHT 720
+
+extern SDL_Window*   window;
+extern SDL_Renderer* renderer;
+
+#define FONT_SIZE 12
+
+extern TTF_Font*       font;
+extern TTF_TextEngine* textEngine;
+
+#define MIL 1'000'000
+#define BIL 1'000'000'000
+#define FPS 60
+#define DFT (BIL / FPS)
+
+extern int64_t dtf; // delta frame
+extern double  fps;
+
+extern bool debugVisible;
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define Color(color)                                                           \
+	((color >> (8 * 3)) & 0xFF), ((color >> (8 * 2)) & 0xFF),                  \
+		((color >> (8 * 1)) & 0xFF), ((color >> (8 * 0)) & 0xFF)
+
+#define RED Color(0xFF0000FF)
+#define GRN Color(0x00FF00FF)
+#define BLU Color(0x0000FFFF)
+#define YEL Color(0xFFFF00FF)
+#define MAG Color(0xFF00FFFF)
+#define CYA Color(0x00FFFFFF)
+
+// add alpha as required
+#define PROG Color(0xFFFFFF00)
+#define RETR Color(0xD2DB2700)
+
+// background color
+#define GRAY Color(0x27242BFF)
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define FAIL(str) ("[1;31m" str "[m")
+#define OKAY(str) ("[1;32m" str "[m")
+#define WARN(str) ("[1;33m" str "[m")
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define ArrayN(t, n)                                                           \
 	typedef struct {                                                           \
-		type*  arr;                                                            \
+		t*     ptr;                                                            \
 		size_t len;                                                            \
 		size_t cap;                                                            \
-	} name
+	} n
 
-#define DynArr(type) DynArrN(type, type##s)
+#define Array(t) ArrayN(t, t##s)
 
-#define DynArrExtend(array, num)                                               \
+#define ArrayExtend(arr)                                                       \
+	((arr).len >= (arr).cap                                                    \
+	     ? (arr).ptr = reallocarray(                                           \
+			   (arr).ptr, ((arr).cap = max((arr).cap << 1, 16)),               \
+			   sizeof(*(arr).ptr)                                              \
+		   )                                                                   \
+	     : 0)
+
+#define ArrayAdd(arr, x) (ArrayExtend(arr), (arr).ptr[(arr).len++] = (x))
+
+#define ArrayNew(arr)                                                          \
+	(ArrayExtend(arr), memset(&(arr).ptr[(arr).len++], 0, sizeof(*(arr).ptr)))
+
+#define ArrayLoop(arr, body) ArrayLoopN(arr, it, body)
+
+#define ArrayLoopN(arr, it, body)                                              \
+	for(size_t i = 0; i < (arr).len; i++) {                                    \
+		typeof((arr).ptr[0])* it = &(arr).ptr[i];                              \
+		body                                                                   \
+	}
+
+#define ArrayFindI(arr, result, pred)                                          \
+	ArrayLoopN(arr, it, {                                                      \
+		if(pred) {                                                             \
+			result = it;                                                       \
+			break;                                                             \
+		}                                                                      \
+	})
+
+#define ArrayFind(arr, result, pred)                                           \
+	typeof((arr).ptr[0])* result = NULL;                                       \
+	ArrayFindI(arr, result, pred)
+
+#define ArrayLast(arr) (arr).ptr[(arr).len - 1]
+
+#define ArrayFree(arr)                                                         \
 	do {                                                                       \
-		(array)->len += num;                                                   \
-		while((array)->cap < (array)->len) {                                   \
-			(array)->cap = MAX((array)->cap << 1, DEFAULT_DYNARR_CAP);         \
-		}                                                                      \
-		(array)->arr =                                                         \
-			reallocarray((array)->arr, (array)->cap, sizeof((array)->arr[0])); \
-		if(!((array)->arr)) {                                                  \
-			SDL_Log(                                                           \
-				CODE_ERROR                                                     \
-				"FATAL: Failed to allocate memory for DynArr" CODE_END         \
-			);                                                                 \
-			die = true;                                                        \
-		}                                                                      \
+		free((arr).ptr);                                                       \
+		(arr).ptr = NULL;                                                      \
+		(arr).len = (arr).cap = 0;                                             \
 	} while(0)
 
-#define DynArrShrink(array, num)                                               \
-	do {                                                                       \
-		(array)->len -= num;                                                   \
-		while((array)->cap >> 1 >= (array)->len) {                             \
-			(array)->cap = (array)->cap >> 1;                                  \
-		}                                                                      \
-		(array)->arr =                                                         \
-			reallocarray((array)->arr, (array)->cap, sizeof((array)->arr[0])); \
-		if(!((array)->arr)) {                                                  \
-			SDL_Log(CODE_ERROR "FATAL: Failed to shrink DynArr" CODE_END);     \
-			die = true;                                                        \
-		}                                                                      \
-	} while(0)
+////////////////////////////////////////////////////////////////////////////////
 
-#define DynArrPush(array, data)                                                \
-	do {                                                                       \
-		DynArrExtend(array, 1);                                                \
-		(array)->arr[(array)->len - 1] = data;                                 \
-	} while(0)
+#define PoolN(t, n)                                                            \
+	typedef struct {                                                           \
+		struct {                                                               \
+			t*     ptr;                                                        \
+			size_t len;                                                        \
+			size_t cap;                                                        \
+		} used;                                                                \
+		struct {                                                               \
+			t**    ptr;                                                        \
+			size_t len;                                                        \
+			size_t cap;                                                        \
+		} free;                                                                \
+	} n
 
-#define DynArrPop(array) DynArrShrink(array, 1);
+#define Pool(t) PoolN(t, t##Pool)
 
-#define DynArrInsert(array, index, src)                                        \
-	do {                                                                       \
-		if(index > (array)->len - 1) {                                         \
-			(array)->arr[(array)->len - 1] = *src;                             \
-		} else {                                                               \
-			for(size_t i = (array)->len; i > index; i--) {                     \
-				(array)->arr[i] = (array)->arr[i - 1];                         \
-			}                                                                  \
-			(array)->arr[index] = *src;                                        \
-		}                                                                      \
-	} while(0)
+#define PoolNew(pool)                                                          \
+	((pool).free.len > 0 ? (pool).free.ptr[--(pool).free.len]                  \
+	                     : ArrayNew((pool).used))
 
-#define DynArrRemove(array, index)                                             \
-	do {                                                                       \
-		if(index > (array)->len) {                                             \
-			SDL_Log(                                                           \
-				CODE_WARN "WARNING: Tried to remove DynArr element with "      \
-						  "index out of range" CODE_END                        \
-			);                                                                 \
-		} else {                                                               \
-			if(index != (array)->len - 1) {                                    \
-				for(size_t j = 0; j < (array)->len - 2; j++) {                 \
-					(array)->arr[j] = (array)->arr[j + 1];                     \
-				}                                                              \
-			}                                                                  \
-			DynArrPop(array);                                                  \
-		}                                                                      \
-	} while(0)
+#define PoolDel(pool, x) ArrayAdd((pool).free, (x))
 
-#define DynArrLoop(array, body)                                                \
-	do {                                                                       \
-		for(size_t i = 0; i < (array)->len; i++) {                             \
-			body                                                               \
-		}                                                                      \
-	} while(0)
-
-// Vector2f math
-typedef struct {
-	double x;
-	double y;
-} Vector2f;
-// -----------------------------------------------------------------------------
-Vector2f   Vec2f_add(Vector2f a, Vector2f b);
-Vector2f   Vec2f_add_value(Vector2f a, double b);
-Vector2f   Vec2f_invert(Vector2f target);
-Vector2f   Vec2f_subtract(Vector2f minuend, Vector2f subtrahend);
-Vector2f   Vec2f_rotate(Vector2f a, double deg);
-Vector2f   Vec2f_normalize(Vector2f a);
-Vector2f   Vec2f_scale(Vector2f a, double scale);
-double     Vec2f_angle_to(Vector2f from, Vector2f to);
-Vector2f   Vec2f_force(double magnitude, double rotation);
-double     Vec2f_length(Vector2f a);
-SDL_FPoint Vec2f_to_FPoint(Vector2f a);
-
-// Vector2 long math
-typedef struct {
-	int64_t x;
-	int64_t y;
-} Vector2l;
-// -----------------------------------------------------------------------------
-Vector2l Vec2l_add(Vector2l a, Vector2l b);
-Vector2l Vec2l_add_value(Vector2l a, int64_t b);
-Vector2l Vec2l_add_fpoint(Vector2l a, SDL_FPoint b);
-Vector2l Vec2l_add_Vec2f(Vector2l a, Vector2f b);
-Vector2l Vec2l_invert(Vector2l target);
-Vector2l Vec2l_subtract(Vector2l minuend, Vector2l subtrahend);
-Vector2l Vec2l_rotate(Vector2l a, int64_t deg);
-Vector2l Vec2l_normalize(Vector2l a, uint64_t fixed_point);
-Vector2l Vec2l_scale(Vector2l a, int64_t scale);
-int64_t  Vec2l_angle_to(Vector2l from, Vector2l to);
-Vector2l Vec2l_force(int64_t magnitude, int64_t rotation);
-int64_t  Vec2l_length(Vector2l a);
-double   Vec2l_get_distance(Vector2l from, Vector2l to);
-
-// Vector2 math
-typedef struct {
-	int32_t x;
-	int32_t y;
-} Vector2;
-// -----------------------------------------------------------------------------
-Vector2 Vec2_add(Vector2 a, Vector2 b);
-Vector2 Vec2_add_value(Vector2 a, int32_t b);
-Vector2 Vec2_invert(Vector2 target);
-Vector2 Vec2_subtract(Vector2 minuend, Vector2 subtrahend);
-Vector2 Vec2_rotate(Vector2 a, int32_t deg);
-Vector2 Vec2_normalize(Vector2 a, uint32_t fixed_point);
-Vector2 Vec2_scale(Vector2 a, int32_t scale);
-int32_t Vec2_angle_to(Vector2 a, Vector2 b);
-Vector2 Vec2_force(int32_t magnitude, int32_t rotation);
-int32_t Vec2_length(Vector2 a);
-
-// SDL_FPoint math
-SDL_FPoint FPoint_add(SDL_FPoint a, SDL_FPoint b);
-SDL_FPoint FPoint_add_value(SDL_FPoint a, float b);
-SDL_FPoint FPoint_invert(SDL_FPoint target);
-SDL_FPoint FPoint_subtract(SDL_FPoint minuend, SDL_FPoint subtrahend);
-SDL_FPoint FPoint_rotate(SDL_FPoint a, float deg);
-SDL_FPoint FPoint_normalize(SDL_FPoint a);
-SDL_FPoint FPoint_scale(SDL_FPoint a, float scale);
-float      FPoint_angle_to(SDL_FPoint from, SDL_FPoint to);
-SDL_FPoint FPoint_force(float magnitude, float rotation);
-float      FPoint_length(SDL_FPoint a);
-Vector2f   FPoint_to_Vec2f(SDL_FPoint a);
-
-// Camera/transform system
-#define DEFAULT_COLLGRID_CELLSIZE 1024
-#define DEFAULT_FIXED_POINT 4194304
-
-typedef struct {
-	Vector2l   pos;
-	SDL_FPoint size;
-	SDL_FPoint ctr;
-	double     rot;
-} Transform;
-typedef struct {
-	Vector2l  target;
-	float     zoom;
-	int8_t    zoom_factor;
-	SDL_Point screensize;
-} Camera;
-// -----------------------------------------------------------------------------
-SDL_FPoint Cam_world_to_screen(Vector2l target, Camera* cam);
-Vector2l   Cam_screen_to_world(SDL_FPoint target, Camera* cam);
-SDL_FRect  Cam_transform_rect(Transform* src, Camera* cam, SDL_FPoint* origin);
-
-// Misc
-#define MIN(a, b) ((a) < (b)) ? a : b
-#define MAX(a, b) ((a) > (b)) ? a : b
-#define CLAMP(min, max, val) MIN(MAX((min), (val)), (max))
+#define PoolLoop(pool, body)                                                   \
+	ArrayLoop(pool.used, {                                                     \
+		if(it->oid == OBJ_INVALID) continue;                                   \
+		body                                                                   \
+	})
 
 #if __INCLUDE_LEVEL__ == 0 /////////////////////////////////////////////////////
 
-// Vector2l math ===============================================================
+SDL_Window*   window;
+SDL_Renderer* renderer;
 
-Vector2l Vec2l_add(Vector2l a, Vector2l b) {
-	return (Vector2l) {a.x + b.x, a.y + b.y};
+TTF_Font*       font;
+TTF_TextEngine* textEngine;
+
+int64_t dtf;
+double  fps;
+
+bool debugVisible;
+
+double mod(double a, double b) {
+	double z = fmod(a, b);
+	if(z < 0) z += b;
+	return z;
 }
-
-Vector2l Vec2l_add_value(Vector2l a, int64_t b) {
-	return (Vector2l) {a.x + b, a.y + b};
-}
-
-Vector2l Vec2l_add_fpoint(Vector2l a, SDL_FPoint b) {
-	return (Vector2l) {a.x + b.x, a.y + b.y};
-}
-
-Vector2l Vec2l_add_Vec2f(Vector2l a, Vector2f b) {
-	return (Vector2l) {a.x + b.x, a.y + b.y};
-}
-
-Vector2l Vec2l_invert(Vector2l target) {
-	return (Vector2l) {-target.x, -target.y};
-}
-
-Vector2l Vec2l_subtract(Vector2l minuend, Vector2l subtrahend) {
-	return (Vector2l) {minuend.x - subtrahend.x, minuend.y - subtrahend.y};
-}
-
-Vector2l Vec2l_rotate(Vector2l a, int64_t deg) {
-	return (Vector2l) {(a.x * cos(deg * DEG2RAD)) - (a.y * sin(deg * DEG2RAD)),
-	                   (a.x * sin(deg * DEG2RAD)) + (a.y * cos(deg * DEG2RAD))};
-}
-
-Vector2l Vec2l_normalize(Vector2l a, uint64_t fixed_point) {
-	const double length = sqrt((a.x * a.x) + (a.y * a.y)) / fixed_point;
-	if(length <= SDL_FLT_EPSILON) return a;
-	return (Vector2l) {a.x / length, a.y / length};
-}
-
-Vector2l Vec2l_scale(Vector2l a, int64_t scale) {
-	return (Vector2l) {a.x * scale, a.y * scale};
-}
-
-int64_t Vec2l_angle_to(Vector2l from, Vector2l to) {
-	double angle = atan2(to.x - from.x, from.y - to.y) * RAD2DEG;
-	if(angle < SDL_FLT_EPSILON) angle += 360;
-	return angle;
-}
-
-Vector2l Vec2l_force(int64_t magnitude, int64_t rotation) {
-	return Vec2l_rotate(Vec2l_scale((Vector2l) {0, -1}, magnitude), rotation);
-}
-
-int64_t Vec2l_length(Vector2l a) {
-	return sqrt((a.x * a.x) + (a.y * a.y));
-}
-
-double Vec2l_get_distance(Vector2l from, Vector2l to) {
-	return Vec2l_length(Vec2l_subtract(to, from));
-}
-
-// Vector2f math ===============================================================
-
-Vector2f Vec2f_add(Vector2f a, Vector2f b) {
-	return (Vector2f) {a.x + b.x, a.y + b.y};
-}
-
-Vector2f Vec2f_add_value(Vector2f a, double b) {
-	return (Vector2f) {a.x * b, a.y * b};
-}
-
-Vector2f Vec2f_invert(Vector2f target) {
-	return (Vector2f) {-target.x, -target.y};
-}
-
-Vector2f Vec2f_subtract(Vector2f minuend, Vector2f subtrahend) {
-	return (Vector2f) {minuend.x - subtrahend.x, minuend.y - subtrahend.y};
-}
-
-Vector2f Vec2f_rotate(Vector2f a, double deg) {
-	return (Vector2f) {(a.x * cos(deg * DEG2RAD)) - (a.y * sin(deg * DEG2RAD)),
-	                   (a.x * sin(deg * DEG2RAD)) + (a.y * cos(deg * DEG2RAD))};
-}
-
-Vector2f Vec2f_normalize(Vector2f a) {
-	const double length = sqrt((a.x * a.x) + (a.y * a.y));
-	if(length <= SDL_FLT_EPSILON) return a;
-	return (Vector2f) {a.x / length, a.y / length};
-}
-
-Vector2f Vec2f_scale(Vector2f a, double scale) {
-	return (Vector2f) {a.x * scale, a.y * scale};
-}
-
-double Vec2f_angle_to(Vector2f from, Vector2f to) {
-	double angle = atan2(to.x - from.x, from.y - to.y) * RAD2DEG;
-	if(angle < SDL_FLT_EPSILON) angle += 360;
-	return angle;
-}
-
-Vector2f Vec2f_force(double magnitude, double rotation) {
-	return Vec2f_rotate(
-		Vec2f_scale((Vector2f) {0.0, -1.0}, magnitude), rotation
-	);
-}
-
-double Vec2f_length(Vector2f a) {
-	return sqrt((a.x * a.x) + (a.y * a.y));
-}
-
-SDL_FPoint Vec2f_to_FPoint(Vector2f a) {
-	return (SDL_FPoint) {a.x, a.y};
-}
-
-// SDL_FPoint math =============================================================
-
-SDL_FPoint FPoint_add(SDL_FPoint a, SDL_FPoint b) {
-	return (SDL_FPoint) {a.x + b.x, a.y + b.y};
-}
-
-SDL_FPoint FPoint_add_value(SDL_FPoint a, float b) {
-	return (SDL_FPoint) {a.x + b, a.y + b};
-}
-
-SDL_FPoint FPoint_invert(SDL_FPoint target) {
-	return (SDL_FPoint) {-target.x, target.y};
-}
-
-SDL_FPoint FPoint_subtract(SDL_FPoint minuend, SDL_FPoint subtrahend) {
-	return (SDL_FPoint) {minuend.x - subtrahend.x, minuend.y - subtrahend.y};
-}
-
-SDL_FPoint FPoint_rotate(SDL_FPoint a, float deg) {
-	return (SDL_FPoint) {
-		(a.x * cos(deg * DEG2RAD)) - (a.y * sin(deg * DEG2RAD)),
-		(a.x * sin(deg * DEG2RAD)) + (a.y * cos(deg * DEG2RAD))
-	};
-}
-
-SDL_FPoint FPoint_normalize(SDL_FPoint a) {
-	const double length = sqrt((a.x * a.x) + (a.y * a.y));
-	if(length <= SDL_FLT_EPSILON) return a;
-	return (SDL_FPoint) {a.x / length, a.y / length};
-}
-
-SDL_FPoint FPoint_scale(SDL_FPoint a, float scale) {
-	return (SDL_FPoint) {a.x * scale, a.y * scale};
-}
-
-float FPoint_angle_to(SDL_FPoint from, SDL_FPoint to) {
-	double angle = atan2(to.x - from.x, from.y - to.y) * RAD2DEG;
-	if(angle < SDL_FLT_EPSILON) angle += 360;
-	return angle;
-}
-
-SDL_FPoint FPoint_force(float magnitude, float rotation) {
-	return FPoint_rotate(
-		FPoint_scale((SDL_FPoint) {0.0f, -1.0f}, magnitude), rotation
-	);
-}
-
-float FPoint_length(SDL_FPoint a) {
-	return sqrt((a.x * a.x) + (a.y * a.y));
-}
-
-Vector2f FPoint_to_Vec2f(SDL_FPoint a) {
-	return (Vector2f) {a.x, a.y};
-}
-
-// Camera/transform system =====================================================
-
-SDL_FPoint Cam_world_to_screen(Vector2l target, Camera* cam) {
-	int64_t diff_x = (target.x - cam->target.x) / DEFAULT_FIXED_POINT;
-	int64_t diff_y = (target.y - cam->target.y) / DEFAULT_FIXED_POINT;
-
-	double screen_x = (double) diff_x;
-	double screen_y = (double) diff_y;
-
-	screen_x *= cam->zoom;
-	screen_y *= cam->zoom;
-
-	screen_x += cam->screensize.x >> 1;
-	screen_y += cam->screensize.y >> 1;
-
-	return (SDL_FPoint) {screen_x, screen_y};
-}
-
-Vector2l Cam_screen_to_world(SDL_FPoint target, Camera* cam) {
-	const double screen_x = target.x - (int32_t) (cam->screensize.x / 2);
-	const double screen_y = target.y - (int32_t) (cam->screensize.y / 2);
-
-	const int64_t world_x = ((((int64_t) screen_x) * DEFAULT_FIXED_POINT) +
-	                         (cam->target.x * cam->zoom)) *
-	                        (1 / cam->zoom);
-	const int64_t world_y = ((((int64_t) screen_y) * DEFAULT_FIXED_POINT) +
-	                         (cam->target.y * cam->zoom)) *
-	                        (1 / cam->zoom);
-
-	return (Vector2l) {world_x, world_y};
-}
-
-SDL_FRect Cam_transform_rect(Transform* src, Camera* cam, SDL_FPoint* origin) {
-	const SDL_FPoint position = Cam_world_to_screen(src->pos, cam);
-
-	const SDL_FPoint size = {
-		(int64_t) src->size.x * cam->zoom, (int64_t) src->size.y * cam->zoom
-	};
-
-	if(origin) {
-		*origin = (SDL_FPoint) {(int64_t) src->ctr.x * cam->zoom,
-		                        (int64_t) src->ctr.y * cam->zoom};
-	}
-
-	return (SDL_FRect) {position.x - (size.x / 2), position.y - (size.y / 2),
-	                    size.x, size.y};
-}
-
-// Vector2 math
-// ================================================================
-
-/* Adds two vector */
-Vector2 Vec2_add(Vector2 a, Vector2 b) {
-	return (Vector2) {a.x + b.x, a.y + b.y};
-}
-
-/* Adds a value onto both components of a vector */
-Vector2 Vec2_add_value(Vector2 a, int32_t b) {
-	return (Vector2) {a.x + b, a.y + b};
-}
-
-/* Inverts the components of a vector */
-Vector2 Vec2_invert(Vector2 target) {
-	return (Vector2) {-target.x, -target.y};
-}
-
-/* Subtracts the components of a vector from another */
-Vector2 Vec2_subtract(Vector2 minuend, Vector2 subtrahend) {
-	return (Vector2) {minuend.x - subtrahend.x, minuend.y - subtrahend.y};
-}
-
-/* Rotates a vector (in degrees) CLOCKWISE around NORTH-ZERO (0° at -y) */
-Vector2 Vec2_rotate(Vector2 a, int32_t deg) {
-	return (Vector2) {(a.x * cos(deg * DEG2RAD)) - (a.y * sin(deg * DEG2RAD)),
-	                  (a.x * sin(deg * DEG2RAD)) + (a.y * cos(deg * DEG2RAD))};
-}
-
-/* Sets the length of a vector to FIXED_POINT without sacrificing its
- * rotation
- */
-Vector2 Vec2_normalize(Vector2 a, uint32_t fixed_point) {
-	const int32_t length = sqrt((a.x * a.x) + (a.y * a.y)) * fixed_point;
-	if(length <= 0) return a;
-	return (Vector2) {a.x / length, a.y / length};
-}
-
-/* Multiplies the components of a vector by a scale factor */
-Vector2 Vec2_scale(Vector2 a, int32_t scale) {
-	return (Vector2) {a.x * scale, a.y * scale};
-}
-
-/* Gets the angle to a vector2 from a certain vector2 on a 360 DEGREEE
- * CLOCKWISE circle with NORTH-UP (0° at -y) */
-int32_t Vec2_angle_to(Vector2 from, Vector2 to) {
-	uint32_t angle = atan2(to.x - from.x, from.y - to.y) * RAD2DEG;
-	return angle;
-}
-
-/* Creates a vector2 with a given length (magnitude) and rotation */
-Vector2 Vec2_force(int32_t magnitude, int32_t rotation) {
-	return Vec2_rotate(Vec2_scale((Vector2) {0, -1}, magnitude), rotation);
-}
-
-/* Gets the length of a vector */
-int32_t Vec2_length(Vector2 a) {
-	return sqrt((a.x * a.x) + (a.y * a.y));
-}
-
-// Misc ========================================================================
 
 #endif

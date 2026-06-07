@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-res="$(dirname "$0")/../res"
-out="$1"
-
 decls=""
 defns=""
 array=""
 count=0
 
-for f in "$res/"*.png; do
+for f in "$(dirname "$0")/../res/"*.png; do
 	n="$(basename "$f")"
 	n="${n%.png}"
 	n="${n^^}"
@@ -22,14 +19,14 @@ static const uint8_t TEX_${n}_DATA[] = {
 #embed \"../res/$(basename "$f")\"
 };
 
-Texture TEX_$n = {NULL, TEX_${n}_DATA, sizeof(TEX_${n}_DATA)};
+Texture TEX_$n = {NULL, TEX_${n}_DATA, sizeof(TEX_${n}_DATA), 0, 0};
 "
 
 	array+="&TEX_$n, "
-	((count+=1))
+	((count += 1))
 done
 
-cat <<EOF >$out
+cat <<EOF
 #pragma once
 
 #include <SDL3/SDL.h>
@@ -38,6 +35,7 @@ typedef struct {
   SDL_Texture*   tex;
   const uint8_t* tex_data;
   size_t         tex_size;
+  float          w, h;
 } Texture;
 
 #define TEXTURES_COUNT $count

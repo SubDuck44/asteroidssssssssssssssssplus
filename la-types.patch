@@ -1,0 +1,244 @@
+--- a/src/lag.c
++++ b/src/lag.c
+@@ -8,10 +8,8 @@
+ #include "nob.h"
+ 
+ typedef enum {
+-    TYPE_FLOAT = 0,
+     TYPE_DOUBLE,
+-    TYPE_INT,
+-    TYPE_UNSIGNED_INT,
++    TYPE_I64,
+     COUNT_TYPES,
+ } Type;
+ 
+@@ -23,12 +21,10 @@
+     bool is_integer;
+ } Type_Def;
+ 
+-static_assert(COUNT_TYPES == 4, "The amount of type definitions have changed.");
++static_assert(COUNT_TYPES == 2, "The amount of type definitions have changed.");
+ static Type_Def type_defs[COUNT_TYPES] = {
+-    [TYPE_FLOAT]        = { .name = "float",        .suffix = "f", .fmt = "f",  .zero_lit = "0.0f", .is_integer = false },
+-    [TYPE_DOUBLE]       = { .name = "double",       .suffix = "d", .fmt = "lf", .zero_lit = "0.0",  .is_integer = false },
+-    [TYPE_INT]          = { .name = "int",          .suffix = "i", .fmt = "d",  .zero_lit = "0",    .is_integer = true  },
+-    [TYPE_UNSIGNED_INT] = { .name = "unsigned int", .suffix = "u", .fmt = "u",  .zero_lit = "0u",   .is_integer = true  },
++    [TYPE_DOUBLE]       = { .name = "double",       .suffix = "d",   .fmt = "lf", .zero_lit = "0.0",  .is_integer = false },
++    [TYPE_I64]          = { .name = "int64_t",      .suffix = "i64", .fmt = "ld", .zero_lit = "0",    .is_integer = true  },
+ };
+ 
+ #define VECTOR_MIN_SIZE 2
+@@ -194,9 +190,7 @@
+             fgenf(stream, "    return %s(a, b);", vec_func(n, type, "sum"));
+         } else {
+             for (size_t i = 0; i < n; ++i) {
+-                if (op == OP_MOD && type == TYPE_FLOAT) {
+-                    fgenf(stream, "    a.%s = fmodf(a.%s, b.%s);", vec_comps[i], vec_comps[i], vec_comps[i]);
+-                } else if (op == OP_MOD && type == TYPE_DOUBLE) {
++                if (op == OP_MOD && type == TYPE_DOUBLE) {
+                     fgenf(stream, "    a.%s = fmod(a.%s, b.%s);", vec_comps[i], vec_comps[i], vec_comps[i]);
+                 } else {
+                     fgenf(stream, "    a.%s %s b.%s;", vec_comps[i], op_defs[op].op, vec_comps[i]);
+@@ -219,13 +213,12 @@
+     char *args[FUN_DEF_MAX_ARITY];
+ } Fun_Def;
+ 
+-static_assert(COUNT_TYPES == 4, "The amount of type definitions have changed. Please update the array bellow accordingly");
++static_assert(COUNT_TYPES == 2, "The amount of type definitions have changed. Please update the array bellow accordingly");
+ // These are definition for scalar functions that we "map" over components of the vectors
+ Fun_Def fun_defs[] = {
+     {
+         .suffix = "sqrt",
+         .name_for_type = {
+-            [TYPE_FLOAT] = "sqrtf",
+             [TYPE_DOUBLE] = "sqrt",
+         },
+         .arity = 1,
+@@ -234,7 +227,6 @@
+     {
+         .suffix = "pow",
+         .name_for_type = {
+-            [TYPE_FLOAT] = "powf",
+             [TYPE_DOUBLE] = "pow",
+         },
+         .arity = 2,
+@@ -243,7 +235,6 @@
+     {
+         .suffix = "sin",
+         .name_for_type = {
+-            [TYPE_FLOAT] = "sinf",
+             [TYPE_DOUBLE] = "sin",
+         },
+         .arity = 1,
+@@ -252,7 +243,6 @@
+     {
+         .suffix = "cos",
+         .name_for_type = {
+-            [TYPE_FLOAT] = "cosf",
+             [TYPE_DOUBLE] = "cos",
+         },
+         .arity = 1,
+@@ -261,10 +251,8 @@
+     {
+         .suffix = "min",
+         .name_for_type = {
+-            [TYPE_FLOAT] = "fminf",
+             [TYPE_DOUBLE] = "fmin",
+-            [TYPE_INT] = "mini",
+-            [TYPE_UNSIGNED_INT] = "minu",
++            [TYPE_I64] = "mini64",
+         },
+         .arity = 2,
+         .args = {"a", "b"},
+@@ -272,10 +260,8 @@
+     {
+         .suffix = "max",
+         .name_for_type = {
+-            [TYPE_FLOAT] = "fmaxf",
+             [TYPE_DOUBLE] = "fmax",
+-            [TYPE_INT] = "maxi",
+-            [TYPE_UNSIGNED_INT] = "maxu",
++            [TYPE_I64] = "maxi64",
+         },
+         .arity = 2,
+         .args = {"a", "b"},
+@@ -283,7 +269,6 @@
+     {
+         .suffix = "lerp",
+         .name_for_type = {
+-            [TYPE_FLOAT] = "lerpf",
+             [TYPE_DOUBLE] = "lerp",
+         },
+         .arity = 3,
+@@ -292,7 +277,6 @@
+     {
+         .suffix = "floor",
+         .name_for_type = {
+-            [TYPE_FLOAT] = "floorf",
+             [TYPE_DOUBLE] = "floor",
+         },
+         .arity = 1,
+@@ -301,7 +285,6 @@
+     {
+         .suffix = "ceil",
+         .name_for_type = {
+-            [TYPE_FLOAT] = "ceilf",
+             [TYPE_DOUBLE] = "ceil",
+         },
+         .arity = 1,
+@@ -310,10 +293,8 @@
+     {
+         .suffix = "clamp",
+         .name_for_type = {
+-            [TYPE_FLOAT] = "clampf",
+             [TYPE_DOUBLE] = "clampd",
+-            [TYPE_INT] = "clampi",
+-            [TYPE_UNSIGNED_INT] = "clampu",
++            [TYPE_I64] = "clampi64",
+         },
+         .arity = 3,
+         .args = {"x", "a", "b"}
+@@ -366,10 +347,8 @@
+ 
+     fgenf(stream, "{");
+     fgenf(stream, "    %s l = %s(a);", type_defs[type].name, vec_func(n, type, "len"));
+-    static_assert(COUNT_TYPES == 4, "Amount of types has changed");
+-    if (type == TYPE_FLOAT) {
+-        fgenf(stream, "    if (fabsf(l) <= eps) return fallback;");
+-    } else if (type == TYPE_DOUBLE) {
++    static_assert(COUNT_TYPES == 2, "Amount of types has changed");
++    if (type == TYPE_DOUBLE) {
+         fgenf(stream, "    if (fabs(l) <= eps) return fallback;");
+     } else {
+         UNREACHABLE("gen_vec_norm: type");
+@@ -412,10 +391,8 @@
+     if (!impl) return;
+ 
+     fgenf(stream, "{");
+-    static_assert(COUNT_TYPES == 4, "Amount of types has changed");
+-    if (type == TYPE_FLOAT) {
+-        fgenf(stream, "    return sqrtf(%s(a));", vec_func(n, type, "sqrlen"));
+-    } else if (type == TYPE_DOUBLE) {
++    static_assert(COUNT_TYPES == 2, "Amount of types has changed");
++     if (type == TYPE_DOUBLE) {
+         fgenf(stream, "    return sqrt(%s(a));", vec_func(n, type, "sqrlen"));
+     } else {
+         UNREACHABLE("gen_vec_len: type");
+@@ -460,8 +437,6 @@
+     for (size_t i = 0; i < n; ++i) {
+         if (type_defs[type].is_integer) {
+             fgenf(stream, "    if (a.%s != b.%s) return false;", vec_comps[i], vec_comps[i]);
+-        } else if (type == TYPE_FLOAT) {
+-            fgenf(stream, "    if (fabsf(b.%s - a.%s) > eps) return false;", vec_comps[i], vec_comps[i]);
+         } else if (type == TYPE_DOUBLE) {
+             fgenf(stream, "    if (fabs(b.%s - a.%s) > eps) return false;", vec_comps[i], vec_comps[i]);
+         } else {
+@@ -674,8 +649,6 @@
+ 
+     if (type == TYPE_DOUBLE) {
+         gen_sig_begin(stream, type_defs[type].name, "lerp");
+-    } else if (type == TYPE_FLOAT) {
+-        gen_sig_begin(stream, type_defs[type].name, "lerpf");
+     } else {
+         UNREACHABLE("gen_lerp: type");
+     }
+@@ -825,12 +798,7 @@
+ 
+     fgenf(stream, "{");
+     fgenf(stream, "    %s m = %s();", mat_type(n, n, type), mat_func(n, n, type, "id"));
+-    if (type == TYPE_FLOAT) {
+-        fgenf(stream, "    m._22 = cosf(angle);");
+-        fgenf(stream, "    m._23 = -sinf(angle);");
+-        fgenf(stream, "    m._32 = sinf(angle);");
+-        fgenf(stream, "    m._33 = cosf(angle);");
+-    } else if (type == TYPE_DOUBLE) {
++    if (type == TYPE_DOUBLE) {
+         fgenf(stream, "    m._22 = cos(angle);");
+         fgenf(stream, "    m._23 = -sin(angle);");
+         fgenf(stream, "    m._32 = sin(angle);");
+@@ -856,12 +824,7 @@
+ 
+     fgenf(stream, "{");
+     fgenf(stream, "    %s m = %s();", mat_type(n, n, type), mat_func(n, n, type, "id"));
+-    if (type == TYPE_FLOAT) {
+-        fgenf(stream, "    m._11 = cosf(angle);");
+-        fgenf(stream, "    m._13 = sinf(angle);");
+-        fgenf(stream, "    m._31 = -sinf(angle);");
+-        fgenf(stream, "    m._33 = cosf(angle);");
+-    } else if (type == TYPE_DOUBLE) {
++    if (type == TYPE_DOUBLE) {
+         fgenf(stream, "    m._11 = cos(angle);");
+         fgenf(stream, "    m._13 = sin(angle);");
+         fgenf(stream, "    m._31 = -sin(angle);");
+@@ -895,12 +858,7 @@
+     } else {
+         fgenf(stream, "    %s m = %s();", mat_type(n, n, type), mat_func(n, n, type, "id"));
+     }
+-    if (type == TYPE_FLOAT) {
+-        fgenf(stream, "    m._11 = cosf(angle);");
+-        fgenf(stream, "    m._12 = -sinf(angle);");
+-        fgenf(stream, "    m._21 = sinf(angle);");
+-        fgenf(stream, "    m._22 = cosf(angle);");
+-    } else if (type == TYPE_DOUBLE) {
++    if (type == TYPE_DOUBLE) {
+         fgenf(stream, "    m._11 = cos(angle);");
+         fgenf(stream, "    m._12 = -sin(angle);");
+         fgenf(stream, "    m._21 = sin(angle);");
+@@ -980,14 +938,16 @@
+ 
+     // Header Part
+     {
++        fgenf(stream, "#pragma once");
+         fgenf(stream, "#ifndef LA_H_");
+         fgenf(stream, "#define LA_H_");
+         fgen_line_break(stream);
+         fgenf(stream, "#include <math.h>");
+         fgenf(stream, "#include <stdbool.h>");
++        fgenf(stream, "#include <stdint.h>");
+         fgen_line_break(stream);
+         fgenf(stream, "#ifndef LADEF");
+-        fgenf(stream, "#define LADEF static inline");
++        fgenf(stream, "#define LADEF");
+         fgenf(stream, "#endif // LADEF");
+         fgen_line_break(stream);
+         fgenf(stream, "#ifdef LA_WARN_DEPRECATED");

@@ -1,6 +1,7 @@
-.cache
-.direnv
-build
-result
+/.cache
+/.direnv
+/build
+/result
+/old
 asetroidssssssssssssssss.excalidraw
 vgcore.*

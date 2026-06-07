@@ -42,6 +42,35 @@ to look at the source code. No guarantee it will be good. If all goes well, this
 *** Audio
 - (?) In-game music player with custom music imports
 
+* How to build
+1. [Have the meson build system](https://mesonbuild.com/)
+2. Clone the repository
+3. run `meson setup build` in the repos root to initialize the build system
+4. run `meson compile -C build` to compile the project
+5. run the binary in the `build` folder
+
+* How to play
+Synopsis:
+
+It's very simple: Shoot the asteroids to gain score.
+Use your system's preferred forcequit to end the program.
+
+Controls:
+- W: Forward thrust
+- A: Rotate left
+- D: Rotate right
+  
+- I: Lateral thrust forward
+- J: Lateral thrust left
+- K: Lateral thrust backward
+- L: Lateral thrust right
+- LEFT_ALT: Show lateral movement guides
+
+- SPACE: Fire penetrator projectile
+
+- +: Zoom in
+- -: Zoom out
+
 * Special thanks
 - …to ZHS 0x82AB1AFA45 for helping me with this project
 - …to my teacher for allowing me to use something other than pygame-zero

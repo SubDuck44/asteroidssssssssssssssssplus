@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+declare iosevka # set by flake
+
+self="$(dirname "$0")"
+mkdir -p "$self/../build/stamps"
+
+old="$self/../build/stamps/font"
+new="$(sha256sum "$iosevka")"
+if [ "$(<"$old")" != "$new" ]; then
+	echo "$new" >"$old"
+	"$self/gen_font.py"
+fi
+
 decls=""
 defns=""
 array=""

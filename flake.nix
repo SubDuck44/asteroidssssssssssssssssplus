@@ -76,6 +76,14 @@
             install -Dm555 {,$out/lib/pkgconfig/}la.pc
           '';
         });
+
+        python = pkgs.python3.withPackages (p: with p; [
+          fonttools
+        ]);
+
+        env = {
+          iosevka = "${pkgs.iosevka}/share/fonts/truetype/Iosevka-Regular.ttf";
+        };
       in
       rec {
         packages.default = pkgs.stdenv.mkDerivation {
@@ -92,10 +100,11 @@
           };
 
           nativeBuildInputs = with pkgs; [
+            breakpointHook
             meson
             ninja
             pkg-config
-            breakpointHook
+            python
           ];
 
           buildInputs = with pkgs; [
@@ -104,6 +113,8 @@
             sdl3-gfx
             sdl3-ttf
           ];
+
+          inherit env;
 
           mesonBuildType = "release";
           mesonFlags = [ "--werror" ];
@@ -128,6 +139,8 @@
             tokei
             valgrind
           ];
+
+          inherit env;
         };
       }
     );

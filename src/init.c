@@ -34,7 +34,7 @@ static void initSDL(void) {
 
 static void initTTF(void) {
 	static const char iosevka[] = {
-#embed "../res/Iosevka-Regular.ttf"
+#embed "../res/iosevka.ttf"
   };
 
 	if(!TTF_Init()) SDL_Die("failed to start TTF");

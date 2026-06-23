@@ -10,7 +10,7 @@ build:
 	mkdir -p build/stamps
 
 	old="$(< build/stamps/res)"
-	new="$(stat res -c %Y)"
+	new="$(stat res -c %Y; sha256sum "$iosevka")"
 	if [ "$old" != "$new" ]; then
 		touch src/gen_res.sh
 		echo "$new" > build/stamps/res

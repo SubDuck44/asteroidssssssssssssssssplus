@@ -7,7 +7,7 @@ self="$(dirname "$0")"
 mkdir -p "$self/../build/stamps"
 
 old="$self/../build/stamps/font"
-new="$(sha256sum "$iosevka")"
+new="$(sha256sum "$iosevka" "$self/gen_font.py")"
 if [ "$(<"$old")" != "$new" ]; then
 	echo "$new" >"$old"
 	"$self/gen_font.py"

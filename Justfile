@@ -9,19 +9,8 @@ build:
 
 	mkdir -p build/stamps
 
-	old="$(< build/stamps/res)"
-	new="$(stat res -c %Y; sha256sum "$iosevka")"
-	if [ "$old" != "$new" ]; then
-		touch src/gen_res.sh
-		echo "$new" > build/stamps/res
-	fi
-
-	old="$(< build/stamps/obj)"
-	new="$(find src/objects/ -type f -exec sha256sum {} \; | sort)"
-	if [ "$old" != "$new" ]; then
-		touch src/gen_objects.sh
-		echo "$new" > build/stamps/obj
-	fi
+	touch src/gen_res.sh
+	touch src/gen_objects.sh
 
 	old="$(< build/stamps/src)"
 	new="$(find src -name '*.c' | sort)"
